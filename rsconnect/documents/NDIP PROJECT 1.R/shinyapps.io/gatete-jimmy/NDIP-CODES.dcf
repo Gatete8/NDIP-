@@ -1,0 +1,12 @@
+name: NDIP-CODES
+title: NDIP-CODES
+username: gatete-jimmy
+account: gatete-jimmy
+server: shinyapps.io
+hostUrl: https://api.shinyapps.io/v1
+appId: 15634995
+bundleId: 11019661
+url: https://gatete-jimmy.shinyapps.io/NDIP-CODES/
+version: 1
+asMultiple: FALSE
+asStatic: FALSE
