@@ -1,0 +1,13 @@
+.Rhistory
+.RData
+*.Rproj.user
+/.git
+node_modules
+vignettes
+data
+logs
+__pycache__
+*.tar.gz
+*.zip
+/*.Rproj
+/.Rproj.user

@@ -1,0 +1,10 @@
+# Local environment variables for NDIP app
+# NOTE: Do NOT store real passwords or secrets in this file when committing to source control.
+# Use environment variables injected at runtime or a secrets manager for production.
+DB_TYPE=postgresql
+DB_HOST=localhost
+DB_PORT=5432
+DB_NAME=NDIP
+DB_USER=postgres
+# DB_PASSWORD is intentionally left blank in this repository. Set it locally (or via your container/runtime) before running the app.
+DB_PASSWORD=

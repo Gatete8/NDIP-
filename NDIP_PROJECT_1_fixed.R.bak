@@ -1,0 +1,50 @@
+# Backup of repaired fixed R file
+# Created automatically before overwrite
+
+# Minimal, working version of NDIP PROJECT 1.R
+# Restored to a clean, parsable Shiny app. Replace or re-add large CSS/JS blocks incrementally.
+
+library(shiny)
+library(bslib)
+library(plotly)
+
+# Minimal theme
+app_theme <- bs_theme(version = 5, base_font = font_google("Inter"))
+
+custom_css <- "html, body { margin:0; font-family: 'Inter', sans-serif; } .hero{padding:40px;} .footer{padding:18px;background:#f5f8fa;}"
+
+ui <- fluidPage(
+  theme = app_theme,
+  tags$head(
+    tags$style(HTML(custom_css)),
+    tags$link(rel = "stylesheet", href = "https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css")
+  ),
+
+  div(class = 'hero',
+      div(class = 'container',
+          h1('NDIP Rwanda - Minimal Working Copy'),
+          p('This file was auto-repaired to remove parse errors. Reintroduce custom JS/CSS gradually.')
+      )
+  ),
+
+  fluidRow(
+    column(6, plotlyOutput('pop_bar')), 
+    column(6, verbatimTextOutput('info'))
+  ),
+
+  div(class='footer',
+      p("\u00A9 NDIP Rwanda - minimal app restored")
+  )
+)
+
+server <- function(input, output, session) {
+  years <- 2020:2025
+  output$pop_bar <- renderPlotly({
+    plot_ly(x = years, y = c(7.2,7.8,8.1,8.4,8.6,8.2), type = 'bar') %>% layout(title = 'Sample GDP Growth')
+  })
+  output$info <- renderText({
+    paste('App repaired at', Sys.time())
+  })
+}
+
+shinyApp(ui, server)

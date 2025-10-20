@@ -5,9 +5,11 @@
 library(shiny)
 library(shinyjs)
 
-### CONFIG: Set the admin app URL you will run separately
-# By default we assume you'll run admin_dashboard_app.R on port 5445 locally.
+### CONFIG: Set the admin and institution app URLs you will run separately
+# By default we assume you'll run admin_dashboard_app.R on port 5445
+# and an institution upload app on port 5446 locally.
 ADMIN_APP_URL <- 'http://127.0.0.1:5445'
+INSTITUTION_APP_URL <- 'http://127.0.0.1:5446'
 
 ui <- fluidPage(
   useShinyjs(),
@@ -21,7 +23,7 @@ ui <- fluidPage(
     # server-rendered login error text (safer than direct DOM manipulation)
     tags$div(class = 'error', textOutput('login_error')),
       tags$hr(),
-      tags$p(tags$strong('Demo account:'), 'admin@nisr.gov.rw / demo123')
+      tags$p(tags$strong('Demo accounts:'), 'admin@nisr.gov.rw / demo123  |  health@moh.gov.rw / demo123')
   )
 )
 
@@ -29,8 +31,11 @@ server <- function(input, output, session){
   # reactiveValues to hold authentication state
   state <- reactiveValues(authenticated = FALSE, user = NULL)
 
-  # Stored credentials (no DB) - production systems should not store plain passwords
-  credentials <- list(email = 'admin@nisr.gov.rw', password = 'demo123')
+  # Demo credentials (no DB) - production systems should not store plain passwords
+  demo_accounts <- list(
+    admin = list(email = 'admin@nisr.gov.rw', password = 'demo123', role = 'Admin'),
+    institution = list(email = 'health@moh.gov.rw', password = 'demo123', role = 'Institution')
+  )
 
   # ---- 1. User clicks the login button ----
   observeEvent(input$login, {
@@ -39,18 +44,25 @@ server <- function(input, output, session){
     pwd <- input$password
 
     # ---- 2. Validate credentials ----
-    if(identical(email, credentials$email) && identical(pwd, credentials$password)){
+    matched <- NULL
+    for(acc in demo_accounts){
+      if(identical(email, acc$email) && identical(pwd, acc$password)){
+        matched <- acc; break
+      }
+    }
+
+    if(!is.null(matched)){
       # Successful authentication
       state$authenticated <- TRUE
-      state$user <- list(email = email, role = 'Admin')
-
-      # ---- 3. Redirect to standalone admin app ----
-      # We use shinyjs::runjs() to change the browser location to the admin app URL.
-      # This assumes you run the admin app separately (e.g. runApp('admin_dashboard_app.R', port=5445)).
-      # clear any previous error and navigate
+      state$user <- list(email = email, role = matched$role)
       output$login_error <- renderText({ '' })
-      runjs(sprintf("window.location.href = '%s';", ADMIN_APP_URL))
 
+      # ---- 3. Redirect to standalone app based on role ----
+      if(tolower(matched$role) == 'admin'){
+        runjs(sprintf("window.location.href = '%s';", ADMIN_APP_URL))
+      } else if(tolower(matched$role) == 'institution'){
+        runjs(sprintf("window.location.href = '%s';", INSTITUTION_APP_URL))
+      }
     } else {
       # Authentication failed -> show inline error on the same login page (rendered by Shiny)
       output$login_error <- renderText({ 'Invalid credentials.' })

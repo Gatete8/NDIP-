@@ -28,13 +28,12 @@ login_ui <- function(id){
                     passwordInput(ns('ndip_password'), NULL, placeholder = 'Enter your password', width = '100%'),
                     actionButton(ns('ndip_signin'), 'Sign In', class = 'btn btn-primary', style='background:#0B7A10; color:#fff; margin-top:10px; width:100%;')
                 ),
-                div(style='margin-top:14px; font-size:13px; color:rgba(255,255,255,0.85);',
-                    tags$div(HTML('<strong>Demo Accounts:</strong>')),
-                    tags$div(HTML('<strong>Admin:</strong> admin@nisr.gov.rw')),
-                    tags$div(HTML('<strong>Institution:</strong> health@moh.gov.rw')),
-                    tags$div(HTML('<strong>Reviewer:</strong> reviewer@nisr.gov.rw')),
-                    tags$div(HTML('<strong>Password:</strong> demo123'))
-                )
+        div(style='margin-top:14px; font-size:13px; color:rgba(255,255,255,0.85);',
+          tags$div(HTML('<strong>Demo Accounts:</strong>')),
+          tags$div(HTML('<strong>Admin:</strong> admin@nisr.gov.rw')),
+          tags$div(HTML('<strong>Reviewer:</strong> reviewer@nisr.gov.rw')),
+          tags$div(HTML('<strong>Password:</strong> demo123'))
+        )
             )
         )
     ),
@@ -42,9 +41,15 @@ login_ui <- function(id){
     # JS: open/close overlay on hash '#login' and expose custom message handler
   tags$script(HTML("(function(){ function toggleUpload(){ var el=document.getElementById('standalone-upload'); if(location.hash==='#login'){ if(el) el.style.display='block'; try{ document.querySelector('body').style.overflow='hidden'; }catch(e){} } else { if(el) el.style.display='none'; try{ document.querySelector('body').style.overflow='auto'; }catch(e){} } } window.addEventListener('hashchange', toggleUpload); setTimeout(toggleUpload,30); if(window.Shiny && Shiny.addCustomMessageHandler){ Shiny.addCustomMessageHandler('setHash', function(message){ try{ if(message && message.hash!==undefined) location.hash = message.hash; }catch(e){} });
   // handle goAdmin message from server: navigate to admin dashboard hash
-  Shiny.addCustomMessageHandler('goAdmin', function(message){ try{ if(message && message.role){ /* choose hash or route as needed */ location.hash = '#admin-dashboard'; } }catch(e){} });
+  Shiny.addCustomMessageHandler('goAdmin', function(message){ try{ if(message && message.role){ /* choose hash or route as needed */ location.hash = '#page=admin'; } }catch(e){} });
   // handle openAdmin - directly show the admin overlay (avoids hash race)
   Shiny.addCustomMessageHandler('openAdmin', function(message){ try{ var el = document.getElementById('standalone-admin'); if(el){ el.style.display='block'; try{ document.querySelector('body').style.overflow='hidden'; }catch(e){} } }catch(e){} });
+  // handle goInstitution: navigate to institution dashboard hash (parity with goAdmin)
+  Shiny.addCustomMessageHandler('goInstitution', function(message){ try{ if(message && message.role){ location.hash = '#page=institution'; } }catch(e){} });
+  // handle openInstitution - directly show the institution overlay (avoids hash race)
+  Shiny.addCustomMessageHandler('openInstitution', function(message){ try{ var el = document.getElementById('standalone-institution'); if(el){ el.style.display='block'; try{ document.querySelector('body').style.overflow='hidden'; }catch(e){} } }catch(e){} });
+  // handle redirectTo - perform a hard browser redirect to provided URL
+  Shiny.addCustomMessageHandler('redirectTo', function(message){ try{ if(message && message.url){ window.location.href = message.url; } }catch(e){} });
   } })();")),
 
     # Typewriter for the small header
@@ -64,8 +69,19 @@ login_server <- function(id, authenticate_fn = NULL){
         res <- tryCatch(authenticate_fn(email, pwd), error = function(e) list(success=FALSE, message=as.character(e)))
         auth_result(res)
       } else {
-        if(isTruthy(email) && isTruthy(pwd)) auth_result(list(success=TRUE, message='demo'))
-        else auth_result(list(success=FALSE, message='Please enter email and password'))
+        # Demo authentication: return a role so the app can decide routing
+        if(isTruthy(email) && isTruthy(pwd)){
+          role <- 'user'
+          eml <- tolower(trimws(as.character(email)))
+          if(eml %in% c('admin@nisr.gov.rw','admin@nisr.gov')) role <- 'admin'
+          else if(eml %in% c('reviewer@nisr.gov.rw','reviewer@nisr.gov')) role <- 'reviewer'
+          else if(grepl('@', eml) && grepl('moh|ministry|health', eml)) role <- 'institution'
+          else if(grepl('@', eml) && grepl('gov.rw|gov', eml)) role <- 'institution'
+          # return structured result
+          auth_result(list(success=TRUE, message='demo', role=role, email=eml))
+        } else {
+          auth_result(list(success=FALSE, message='Please enter email and password'))
+        }
       }
     })
 

@@ -1,0 +1,26 @@
+# Copy this file to .Renviron (in project root or user home) and fill in values.
+# Do NOT commit .Renviron with real secrets to git.
+
+# Database example for Postgres
+DB_TYPE=postgres
+DB_HOST=127.0.0.1
+DB_PORT=5432
+DB_NAME=ndip_db
+DB_USER=ndip_app
+DB_PASSWORD=replace_with_secure_password
+
+# Or for SQLite (just set DB_TYPE=sqlite and DB_NAME=path/to/db.sqlite)
+#DB_TYPE=sqlite
+#DB_NAME=./data/ndip.sqlite
+
+# Example for ODBC
+#DSN=my_dsn_name
+#DB_TYPE=odbc
+
+# Example for MySQL/MariaDB
+#DB_TYPE=mysql
+#DB_HOST=127.0.0.1
+#DB_PORT=3306
+#DB_NAME=ndip_db
+#DB_USER=ndip_app
+#DB_PASSWORD=...

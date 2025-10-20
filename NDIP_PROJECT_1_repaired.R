@@ -20,8 +20,17 @@ server <- function(input, output, session){
 
   if (!is.null(login) && is.reactive(login$result)) {
     observeEvent(login$result(), {
-      if (identical(login$result(), 'ok')) {
-        showModal(modalDialog('Demo login successful', easyClose = TRUE))
+      res <- login$result()
+      # If structured result with role is returned, act accordingly
+      if (is.list(res) && isTRUE(res$success)) {
+  role <- if(!is.null(res$role)) res$role else NULL
+        if (!is.null(role) && role == 'institution'){
+          showNotification('Redirecting to Institution Upload Dashboard...', type = 'message')
+          # send client a message to perform a hard redirect
+          session$sendCustomMessage('redirectTo', list(url = 'http://127.0.0.1:5446'))
+        } else {
+          showModal(modalDialog('Demo login successful', easyClose = TRUE))
+        }
       }
     })
   }

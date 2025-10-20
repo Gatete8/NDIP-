@@ -178,7 +178,7 @@ body {
 }
 
 .hero-left { 
-  flex: 1;
+  flex: 1; 
   max-width: 600px;
 }
 
@@ -222,8 +222,8 @@ body {
   font-weight: 600; 
   text-decoration: none; 
   transition: background 0.2s ease;
-  border: none;
-  cursor: pointer;
+  border: none; 
+  cursor: pointer; 
 }
 
 .hero-left .btn-primary:hover { 
@@ -254,7 +254,7 @@ body {
 }
 
 .carousel-container { 
-  position: relative; 
+  position: relative;
   width: 100%; 
   height: 400px; 
   overflow: hidden; 
@@ -275,9 +275,9 @@ body {
 }
 
 .carousel-slide img { 
-  width: 100%; 
+  width: 100%;
   height: 100%; 
-  object-fit: cover; 
+  object-fit: cover;
 }
 
 .carousel-dots { 
@@ -1306,6 +1306,309 @@ ui <- fluidPage(
   # JS for demographics routing and side-link behavior
   tags$script(HTML("(function(){\n      function showOrHide(){\n        var econ = document.getElementById('standalone-economic');\n        var gov = document.getElementById('standalone-governance');\n        var tour = document.getElementById('standalone-tourism');\n        var health = document.getElementById('standalone-health');\n        var edu = document.getElementById('standalone-education');\n        var demo = document.getElementById('standalone-demographics');\n        if(location.hash === '#page=economic'){ if(econ) econ.style.display='block'; if(gov) gov.style.display='none'; if(tour) tour.style.display='none'; if(health) health.style.display='none'; if(edu) edu.style.display='none'; if(demo) demo.style.display='none'; try{ document.querySelector('body').style.overflow='hidden'; }catch(e){} }\n        else if(location.hash === '#page=governance'){ if(gov) gov.style.display='block'; if(econ) econ.style.display='none'; if(tour) tour.style.display='none'; if(health) health.style.display='none'; if(edu) edu.style.display='none'; if(demo) demo.style.display='none'; try{ document.querySelector('body').style.overflow='hidden'; }catch(e){} }\n        else if(location.hash === '#page=tourism'){ if(tour) tour.style.display='block'; if(econ) econ.style.display='none'; if(gov) gov.style.display='none'; if(health) health.style.display='none'; if(edu) edu.style.display='none'; if(demo) demo.style.display='none'; try{ document.querySelector('body').style.overflow='hidden'; }catch(e){} }\n        else if(location.hash === '#page=health'){ if(health) health.style.display='block'; if(econ) econ.style.display='none'; if(gov) gov.style.display='none'; if(tour) tour.style.display='none'; if(edu) edu.style.display='none'; if(demo) demo.style.display='none'; try{ document.querySelector('body').style.overflow='hidden'; }catch(e){} }\n        else if(location.hash === '#page=education'){ if(edu) edu.style.display='block'; if(econ) econ.style.display='none'; if(gov) gov.style.display='none'; if(tour) tour.style.display='none'; if(health) health.style.display='none'; if(demo) demo.style.display='none'; try{ document.querySelector('body').style.overflow='hidden'; }catch(e){} }\n        else if(location.hash === '#page=demographics'){ if(demo) demo.style.display='block'; if(econ) econ.style.display='none'; if(gov) gov.style.display='none'; if(tour) tour.style.display='none'; if(health) health.style.display='none'; if(edu) edu.style.display='none'; try{ document.querySelector('body').style.overflow='hidden'; }catch(e){} }\n        else { if(econ) econ.style.display='none'; if(gov) gov.style.display='none'; if(tour) tour.style.display='none'; if(health) health.style.display='none'; if(edu) edu.style.display='none'; if(demo) demo.style.display='none'; try{ document.querySelector('body').style.overflow='auto'; }catch(e){} }\n      }\n      window.addEventListener('hashchange', showOrHide);\n      var closeDemo = document.getElementById('close-demographics-standalone'); if(closeDemo) closeDemo.addEventListener('click', function(e){ e.preventDefault(); location.hash = ''; });\n      var closeLeft = document.getElementById('close-demographics-left'); if(closeLeft) closeLeft.addEventListener('click', function(e){ e.preventDefault(); location.hash = ''; });\n      var goBackDemo = document.getElementById('go-back-sectors-demographics'); if(goBackDemo){ goBackDemo.addEventListener('click', function(e){ e.preventDefault(); location.hash = '#sectors'; showOrHide(); setTimeout(function(){ var el = document.getElementById('sectors'); if(el) el.scrollIntoView({behavior:'smooth'}); }, 100); }); }\n      var links = document.querySelectorAll('#standalone-demographics .side-link');\n      function clearActive(){ links.forEach(function(a){ a.classList.remove('active'); }); }\n      links.forEach(function(a){ a.addEventListener('click', function(e){ e.preventDefault(); var href = a.getAttribute('href'); var id = href && href.replace('#',''); var target = document.getElementById(id); if(target){ target.scrollIntoView({behavior:'smooth', block:'start'}); } clearActive(); a.classList.add('active'); }); });\n      setTimeout(showOrHide, 30);\n    })();"))
   ),
+
+  # Admin Dashboard Page (hidden by default)
+  div(id='standalone-admin', style='display:none; position:fixed; inset:0; background:#ffffff; z-index:2000; overflow:auto; padding:0;',
+    div(class='standalone-sidebar',
+      div(class='brand', 'NDIP'),
+      tags$div(class='side-nav',
+        tags$ul(
+          tags$li(HTML('<a href="#" onclick="Shiny.setInputValue(\'admin_tab\', \'overview\'); return false;" class="side-link"><span class="side-icon"><i class="fas fa-chart-pie"></i></span><span class="side-text">Overview</span><span class="side-pill"></span></a>')),
+          tags$li(HTML('<a href="#" onclick="Shiny.setInputValue(\'admin_tab\', \'submissions\'); return false;" class="side-link"><span class="side-icon"><i class="fas fa-file-upload"></i></span><span class="side-text">Submissions</span><span class="side-pill"></span></a>')),
+          tags$li(HTML('<a href="#" onclick="Shiny.setInputValue(\'admin_tab\', \'users\'); return false;" class="side-link"><span class="side-icon"><i class="fas fa-users"></i></span><span class="side-text">Users</span><span class="side-pill"></span></a>')),
+          tags$li(HTML('<a href="#" onclick="Shiny.setInputValue(\'admin_tab\', \'settings\'); return false;" class="side-link"><span class="side-icon"><i class="fas fa-cog"></i></span><span class="side-text">Settings</span><span class="side-pill"></span></a>'))
+        )
+      ),
+      tags$div(style='margin-top:auto; font-size:13px; opacity:0.95; color:#fff;', HTML('<a href="#" id="close-admin-left" style="color:#fff; text-decoration:none; font-weight:800;">Close</a>'))
+    ),
+    div(class='standalone-main', style='padding:24px 32px; min-height:100vh;',
+      div(style='display:flex; align-items:center; gap:12px; justify-content:space-between;',
+        div(style='display:flex; align-items:center; gap:12px;',
+          tags$a(href='#', id='go-back-home-admin', style='display:inline-block; padding:8px 12px; border-radius:10px; background:#fff; color:#2563eb; font-weight:800; text-decoration:none; box-shadow:0 6px 18px rgba(37,99,235,0.08);', HTML('&#8592; Back to Home')),
+          tags$h2('Admin Dashboard', style='margin:0; color:#1f2937;')
+        ),
+        tags$a(href='#', id='close-admin-standalone', 'Close', style='color:#2563eb; font-weight:700; text-decoration:none;')
+      ),
+      div(id='admin-dashboard-body', style='min-height:600px; background:transparent; padding:0; border-radius:0; box-shadow:none;',
+        # Dynamic content based on selected tab
+        conditionalPanel(
+          condition = "input.admin_tab == 'overview'",
+          # Admin Stats
+          div(style = "display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px; margin-bottom: 24px;",
+            div(style = "background: #f8fafc; border-radius: 8px; padding: 16px; border-left: 4px solid #2563eb;",
+              tags$h4(style = "margin: 0 0 8px; color: #1f2937; font-size: 24px;", textOutput("admin_total_submissions")),
+              tags$p(style = "margin: 0; color: #6b7280; font-size: 14px;", "Total Submissions"),
+              tags$p(style = "margin: 4px 0 0; color: #10b981; font-size: 12px;", textOutput("admin_submission_growth"))
+            ),
+            div(style = "background: #f8fafc; border-radius: 8px; padding: 16px; border-left: 4px solid #d97706;",
+              tags$h4(style = "margin: 0 0 8px; color: #d97706; font-size: 24px;", textOutput("admin_pending_reviews")),
+              tags$p(style = "margin: 0; color: #6b7280; font-size: 14px;", "Pending Review"),
+              tags$p(style = "margin: 4px 0 0; color: #6b7280; font-size: 12px;", textOutput("admin_avg_processing"))
+            ),
+            div(style = "background: #f8fafc; border-radius: 8px; padding: 16px; border-left: 4px solid #059669;",
+              tags$h4(style = "margin: 0 0 8px; color: #059669; font-size: 24px;", textOutput("admin_approval_rate")),
+              tags$p(style = "margin: 0; color: #6b7280; font-size: 14px;", "Approval Rate"),
+              tags$p(style = "margin: 4px 0 0; color: #059669; font-size: 12px;", textOutput("admin_performance"))
+            ),
+            div(style = "background: #f8fafc; border-radius: 8px; padding: 16px; border-left: 4px solid #7c3aed;",
+              tags$h4(style = "margin: 0 0 8px; color: #1f2937; font-size: 24px;", textOutput("admin_active_institutions")),
+              tags$p(style = "margin: 0; color: #6b7280; font-size: 14px;", "Active Institutions"),
+              tags$p(style = "margin: 4px 0 0; color: #059669; font-size: 12px;", textOutput("admin_participation"))
+            )
+          ),
+          # Charts Row
+          div(style = "display: grid; grid-template-columns: 2fr 1fr; gap: 16px; margin-bottom: 24px;",
+            # Main Chart
+            div(style = "background: #f8fafc; border-radius: 8px; padding: 16px;",
+              tags$h5(style = "margin: 0 0 16px; color: #1f2937;", "Submissions Over Time"),
+              plotlyOutput("admin_chart", height = "300px")
+            ),
+            # Institution Performance
+            div(style = "background: #f8fafc; border-radius: 8px; padding: 16px;",
+              tags$h5(style = "margin: 0 0 16px; color: #1f2937;", "Top Performing Institutions"),
+              plotlyOutput("admin_institution_chart", height = "300px")
+            )
+          ),
+          # Recent Activity
+          div(style = "background: #f8fafc; border-radius: 8px; padding: 16px; margin-bottom: 16px;",
+            tags$h5(style = "margin: 0 0 16px; color: #1f2937;", "Recent Activity"),
+            DT::dataTableOutput("admin_recent_activity", height = "200px")
+          )
+        ),
+        
+        conditionalPanel(
+          condition = "input.admin_tab == 'submissions'",
+          # Submissions Management
+          div(style = "background: #f8fafc; border-radius: 8px; padding: 16px; margin-bottom: 16px;",
+            div(style = "display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;",
+              tags$h5(style = "margin: 0; color: #1f2937;", "Data Submissions Management"),
+              div(style = "display: flex; gap: 8px;",
+                selectInput("submission_filter", "Filter:", choices = c("All", "Pending", "Approved", "Rejected"), selected = "All", width = "120px"),
+                actionButton("refresh_submissions", "Refresh", class = "btn btn-sm btn-outline-primary")
+              )
+            ),
+            DT::dataTableOutput("admin_submissions_table", height = "400px")
+          )
+        ),
+        
+        conditionalPanel(
+          condition = "input.admin_tab == 'users'",
+          # User Management
+          div(style = "background: #f8fafc; border-radius: 8px; padding: 16px; margin-bottom: 16px;",
+            div(style = "display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;",
+              tags$h5(style = "margin: 0; color: #1f2937;", "User Management"),
+              div(style = "display: flex; gap: 8px;",
+                actionButton("add_user", "Add User", class = "btn btn-sm btn-primary"),
+                actionButton("export_users", "Export", class = "btn btn-sm btn-outline-secondary")
+              )
+            ),
+            DT::dataTableOutput("admin_users_table", height = "400px")
+          )
+        ),
+        
+        conditionalPanel(
+          condition = "input.admin_tab == 'settings'",
+          # System Settings
+          div(style = "display: grid; grid-template-columns: 1fr 1fr; gap: 16px;",
+            # General Settings
+            div(style = "background: #f8fafc; border-radius: 8px; padding: 16px;",
+              tags$h5(style = "margin: 0 0 16px; color: #1f2937;", "General Settings"),
+              textInput("system_name", "System Name:", value = "NDIP Rwanda", width = "100%"),
+              numericInput("max_file_size", "Max File Size (MB):", value = 50, min = 1, max = 500, width = "100%"),
+              numericInput("session_timeout", "Session Timeout (minutes):", value = 30, min = 5, max = 120, width = "100%"),
+              checkboxInput("email_notifications", "Enable Email Notifications", value = TRUE),
+              checkboxInput("auto_approval", "Enable Auto-Approval", value = FALSE),
+              br(),
+              actionButton("save_settings", "Save Settings", class = "btn btn-primary")
+            ),
+            # Security Settings
+            div(style = "background: #f8fafc; border-radius: 8px; padding: 16px;",
+              tags$h5(style = "margin: 0 0 16px; color: #1f2937;", "Security Settings"),
+              numericInput("password_min_length", "Min Password Length:", value = 8, min = 6, max = 20, width = "100%"),
+              numericInput("login_attempts", "Max Login Attempts:", value = 5, min = 3, max = 10, width = "100%"),
+              checkboxInput("two_factor_auth", "Enable Two-Factor Authentication", value = FALSE),
+              checkboxInput("ip_whitelist", "Enable IP Whitelist", value = FALSE),
+              br(),
+              actionButton("test_connection", "Test Database Connection", class = "btn btn-outline-primary")
+            )
+          )
+        )
+      )
+    ),
+    # JS for admin routing
+    tags$script(HTML("(function(){\n      function showOrHide(){\n        var admin = document.getElementById('standalone-admin');\n        var inst = document.getElementById('standalone-institution');\n        if(location.hash === '#admin'){ if(admin) admin.style.display='block'; if(inst) inst.style.display='none'; try{ document.querySelector('body').style.overflow='hidden'; }catch(e){} }\n        else if(location.hash === '#institution'){ if(inst) inst.style.display='block'; if(admin) admin.style.display='none'; try{ document.querySelector('body').style.overflow='hidden'; }catch(e){} }\n        else { if(admin) admin.style.display='none'; if(inst) inst.style.display='none'; try{ document.querySelector('body').style.overflow='auto'; }catch(e){} }\n      }\n      window.addEventListener('hashchange', showOrHide);\n      var closeAdmin = document.getElementById('close-admin-standalone'); if(closeAdmin) closeAdmin.addEventListener('click', function(e){ e.preventDefault(); location.hash = ''; });\n      var closeLeft = document.getElementById('close-admin-left'); if(closeLeft) closeLeft.addEventListener('click', function(e){ e.preventDefault(); location.hash = ''; });\n      var goBackAdmin = document.getElementById('go-back-home-admin'); if(goBackAdmin){ goBackAdmin.addEventListener('click', function(e){ e.preventDefault(); location.hash = ''; }); }\n      setTimeout(showOrHide, 30);\n    })();"))
+  ),
+
+  # Institution Dashboard Page (hidden by default)
+  div(id='standalone-institution', style='display:none; position:fixed; inset:0; background:#ffffff; z-index:2000; overflow:auto; padding:0;',
+    div(class='standalone-sidebar',
+      div(class='brand', 'NDIP'),
+      tags$div(class='side-nav',
+        tags$ul(
+          tags$li(HTML('<a href="#" onclick="Shiny.setInputValue(\'inst_tab\', \'overview\'); return false;" class="side-link"><span class="side-icon"><i class="fas fa-chart-pie"></i></span><span class="side-text">Overview</span><span class="side-pill"></span></a>')),
+          tags$li(HTML('<a href="#" onclick="Shiny.setInputValue(\'inst_tab\', \'submissions\'); return false;" class="side-link"><span class="side-icon"><i class="fas fa-file-upload"></i></span><span class="side-text">My Submissions</span><span class="side-pill"></span></a>')),
+          tags$li(HTML('<a href="#" onclick="Shiny.setInputValue(\'inst_tab\', \'analytics\'); return false;" class="side-link"><span class="side-icon"><i class="fas fa-chart-line"></i></span><span class="side-text">Analytics</span><span class="side-pill"></span></a>')),
+          tags$li(HTML('<a href="#" onclick="Shiny.setInputValue(\'inst_tab\', \'settings\'); return false;" class="side-link"><span class="side-icon"><i class="fas fa-cog"></i></span><span class="side-text">Settings</span><span class="side-pill"></span></a>'))
+        )
+      ),
+      tags$div(style='margin-top:auto; font-size:13px; opacity:0.95; color:#fff;', HTML('<a href="#" id="close-institution-left" style="color:#fff; text-decoration:none; font-weight:800;">Close</a>'))
+    ),
+    div(class='standalone-main', style='padding:24px 32px; min-height:100vh;',
+      div(style='display:flex; align-items:center; gap:12px; justify-content:space-between;',
+        div(style='display:flex; align-items:center; gap:12px;',
+          tags$a(href='#', id='go-back-home-institution', style='display:inline-block; padding:8px 12px; border-radius:10px; background:#fff; color:#0ea5e9; font-weight:800; text-decoration:none; box-shadow:0 6px 18px rgba(14,165,233,0.08);', HTML('&#8592; Back to Home')),
+          tags$h2('Institution Dashboard', style='margin:0; color:#1f2937;')
+        ),
+        tags$a(href='#', id='close-institution-standalone', 'Close', style='color:#0ea5e9; font-weight:700; text-decoration:none;')
+      ),
+      div(id='institution-dashboard-body', style='min-height:600px; background:transparent; padding:0; border-radius:0; box-shadow:none;',
+        # Dynamic content based on selected tab
+        conditionalPanel(
+          condition = "input.inst_tab == 'overview'",
+          # Welcome message
+          div(style = "background: #f0f9ff; border-radius: 8px; padding: 16px; margin-bottom: 20px; border-left: 4px solid #0ea5e9;",
+            tags$h4(style = "margin: 0 0 8px; color: #0c4a6e;", textOutput("inst_welcome_message")),
+            tags$p(style = "margin: 0; color: #075985; font-size: 14px;", "Access your data submission portal and view your organization's analytics.")
+          ),
+          # Institution stats
+          div(style = "display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px; margin-bottom: 24px;",
+            div(style = "background: #f8fafc; border-radius: 8px; padding: 16px; border-left: 4px solid #0ea5e9;",
+              tags$h4(style = "margin: 0 0 8px; color: #0c4a6e; font-size: 24px;", textOutput("inst_my_submissions")),
+              tags$p(style = "margin: 0; color: #6b7280; font-size: 14px;", "My Submissions"),
+              tags$p(style = "margin: 4px 0 0; color: #0ea5e9; font-size: 12px;", textOutput("inst_last_updated"))
+            ),
+            div(style = "background: #f8fafc; border-radius: 8px; padding: 16px; border-left: 4px solid #10b981;",
+              tags$h4(style = "margin: 0 0 8px; color: #047857; font-size: 24px;", textOutput("inst_approval_rate")),
+              tags$p(style = "margin: 0; color: #6b7280; font-size: 14px;", "Approval Rate"),
+              tags$p(style = "margin: 4px 0 0; color: #10b981; font-size: 12px;", textOutput("inst_performance"))
+            ),
+            div(style = "background: #f8fafc; border-radius: 8px; padding: 16px; border-left: 4px solid #f59e0b;",
+              tags$h4(style = "margin: 0 0 8px; color: #92400e; font-size: 24px;", textOutput("inst_pending_updates")),
+              tags$p(style = "margin: 0; color: #6b7280; font-size: 14px;", "Pending Updates"),
+              tags$p(style = "margin: 4px 0 0; color: #f59e0b; font-size: 12px;", textOutput("inst_due_date"))
+            )
+          ),
+          # Charts Row
+          div(style = "display: grid; grid-template-columns: 2fr 1fr; gap: 16px; margin-bottom: 24px;",
+            # Main Chart
+            div(style = "background: #f8fafc; border-radius: 8px; padding: 16px;",
+              tags$h5(style = "margin: 0 0 16px; color: #1f2937;", "My Submission Trends"),
+              plotlyOutput("institution_chart", height = "300px")
+            ),
+            # Quick Actions
+            div(style = "background: #f8fafc; border-radius: 8px; padding: 16px;",
+              tags$h5(style = "margin: 0 0 16px; color: #1f2937;", "Quick Actions"),
+              div(style = "display: flex; flex-direction: column; gap: 8px;",
+                actionButton('quick_submit', 'Submit New Data', class = 'btn btn-primary', style = "width: 100%;"),
+                actionButton('quick_view', 'View Submissions', class = 'btn btn-outline-primary', style = "width: 100%;"),
+                actionButton('quick_analytics', 'View Analytics', class = 'btn btn-outline-secondary', style = "width: 100%;")
+              )
+            )
+          ),
+          # Recent Submissions
+          div(style = "background: #f8fafc; border-radius: 8px; padding: 16px; margin-bottom: 16px;",
+            tags$h5(style = "margin: 0 0 16px; color: #1f2937;", "Recent Submissions"),
+            DT::dataTableOutput("inst_recent_submissions", height = "200px")
+          )
+        ),
+        
+        conditionalPanel(
+          condition = "input.inst_tab == 'submissions'",
+          # Data Submission Form
+          div(style = "background: #f8fafc; border-radius: 8px; padding: 16px; margin-bottom: 16px;",
+            tags$h5(style = "margin: 0 0 16px; color: #1f2937;", "Submit New Data"),
+            div(style = "display: grid; grid-template-columns: 1fr 1fr; gap: 16px;",
+              # Form
+              div(
+                textInput("data_title", "Data Title:", placeholder = "Enter data title", width = "100%"),
+                selectInput("data_category", "Category:", choices = c("Economic", "Health", "Education", "Agriculture", "Demographics", "Infrastructure"), width = "100%"),
+                textAreaInput("data_description", "Description:", placeholder = "Describe your data", rows = 3, width = "100%"),
+                fileInput("data_file", "Upload File:", accept = c(".csv", ".xlsx", ".json"), width = "100%"),
+                div(style = "display: flex; gap: 8px; margin-top: 16px;",
+                  actionButton("submit_data", "Submit Data", class = "btn btn-primary"),
+                  actionButton("save_draft", "Save Draft", class = "btn btn-outline-secondary")
+                )
+              ),
+              # Guidelines
+              div(style = "background: #e0f2fe; border-radius: 8px; padding: 16px;",
+                tags$h6(style = "margin: 0 0 12px; color: #0277bd;", "Submission Guidelines"),
+                tags$ul(style = "margin: 0; padding-left: 20px; color: #01579b; font-size: 14px;",
+                  tags$li("File size must be under 50MB"),
+                  tags$li("Supported formats: CSV, Excel, JSON"),
+                  tags$li("Include clear column headers"),
+                  tags$li("Data must be accurate and complete"),
+                  tags$li("Provide detailed descriptions")
+                )
+              )
+            )
+          ),
+          # My Submissions Table
+          div(style = "background: #f8fafc; border-radius: 8px; padding: 16px;",
+            div(style = "display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;",
+              tags$h5(style = "margin: 0; color: #1f2937;", "My Submissions"),
+              div(style = "display: flex; gap: 8px;",
+                selectInput("inst_submission_filter", "Filter:", choices = c("All", "Pending", "Approved", "Rejected"), selected = "All", width = "120px"),
+                actionButton("refresh_inst_submissions", "Refresh", class = "btn btn-sm btn-outline-primary")
+              )
+            ),
+            DT::dataTableOutput("inst_submissions_table", height = "400px")
+          )
+        ),
+        
+        conditionalPanel(
+          condition = "input.inst_tab == 'analytics'",
+          # Analytics Dashboard
+          div(style = "display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 16px;",
+            # Performance Metrics
+            div(style = "background: #f8fafc; border-radius: 8px; padding: 16px;",
+              tags$h5(style = "margin: 0 0 16px; color: #1f2937;", "Performance Metrics"),
+              plotlyOutput("inst_performance_chart", height = "300px")
+            ),
+            # Data Quality Score
+            div(style = "background: #f8fafc; border-radius: 8px; padding: 16px;",
+              tags$h5(style = "margin: 0 0 16px; color: #1f2937;", "Data Quality Score"),
+              plotlyOutput("inst_quality_chart", height = "300px")
+            )
+          ),
+          # Detailed Analytics
+          div(style = "background: #f8fafc; border-radius: 8px; padding: 16px;",
+            tags$h5(style = "margin: 0 0 16px; color: #1f2937;", "Detailed Analytics"),
+            DT::dataTableOutput("inst_analytics_table", height = "300px")
+          )
+        ),
+        
+        conditionalPanel(
+          condition = "input.inst_tab == 'settings'",
+          # Institution Settings
+          div(style = "display: grid; grid-template-columns: 1fr 1fr; gap: 16px;",
+            # Profile Settings
+            div(style = "background: #f8fafc; border-radius: 8px; padding: 16px;",
+              tags$h5(style = "margin: 0 0 16px; color: #1f2937;", "Profile Settings"),
+              textInput("inst_name", "Institution Name:", value = "Ministry of Health", width = "100%"),
+              textInput("inst_email", "Contact Email:", value = "health@moh.gov.rw", width = "100%"),
+              textInput("inst_phone", "Phone Number:", value = "+250 123 456 789", width = "100%"),
+              textAreaInput("inst_address", "Address:", value = "Kigali, Rwanda", rows = 2, width = "100%"),
+              br(),
+              actionButton("update_profile", "Update Profile", class = "btn btn-primary")
+            ),
+            # Notification Settings
+            div(style = "background: #f8fafc; border-radius: 8px; padding: 16px;",
+              tags$h5(style = "margin: 0 0 16px; color: #1f2937;", "Notification Settings"),
+              checkboxInput("email_notifications_inst", "Email Notifications", value = TRUE),
+              checkboxInput("sms_notifications", "SMS Notifications", value = FALSE),
+              checkboxInput("approval_notifications", "Approval Notifications", value = TRUE),
+              checkboxInput("rejection_notifications", "Rejection Notifications", value = TRUE),
+              br(),
+              actionButton("update_notifications", "Update Settings", class = "btn btn-primary")
+            )
+          )
+        )
+      )
+    ),
+    # JS for institution routing
+    tags$script(HTML("(function(){\n      function showOrHide(){\n        var admin = document.getElementById('standalone-admin');\n        var inst = document.getElementById('standalone-institution');\n        if(location.hash === '#admin'){ if(admin) admin.style.display='block'; if(inst) inst.style.display='none'; try{ document.querySelector('body').style.overflow='hidden'; }catch(e){} }\n        else if(location.hash === '#institution'){ if(inst) inst.style.display='block'; if(admin) admin.style.display='none'; try{ document.querySelector('body').style.overflow='hidden'; }catch(e){} }\n        else { if(admin) admin.style.display='none'; if(inst) inst.style.display='none'; try{ document.querySelector('body').style.overflow='auto'; }catch(e){} }\n      }\n      window.addEventListener('hashchange', showOrHide);\n      var closeInst = document.getElementById('close-institution-standalone'); if(closeInst) closeInst.addEventListener('click', function(e){ e.preventDefault(); location.hash = ''; });\n      var closeLeft = document.getElementById('close-institution-left'); if(closeLeft) closeLeft.addEventListener('click', function(e){ e.preventDefault(); location.hash = ''; });\n      var goBackInst = document.getElementById('go-back-home-institution'); if(goBackInst){ goBackInst.addEventListener('click', function(e){ e.preventDefault(); location.hash = ''; }); }\n      setTimeout(showOrHide, 30);\n    })();"))
+  ),
+
   # Main content wrapper: grows to fill available height so footer can sit at the bottom
   # Main content wrapper: keep minimal bottom padding so footer sits directly after content
   div(id='page-content', style='flex:1 0 auto; display:flex; flex-direction:column; padding-bottom:0;',
@@ -2355,7 +2658,7 @@ server <- function(input, output, session) {
   observe({
     imgs <- c(
       "homepage.pic11.jpg.jpg",
-      "homepage.pic2.jpg.jpg", 
+      "homepage.pic2.jpg.jpg",
       "homepage.pic3.jpg.jpg",
       "homepage.pic4.jpg (2).jpg",
       "homepage.pic5.jpg.jpg"
@@ -2745,70 +3048,17 @@ server <- function(input, output, session) {
       # store current user in session and navigate immediately
       session$userData$current_user <- matched
       if(!is.null(matched$role) && tolower(matched$role) == 'admin'){
-        # For admin, show admin dashboard modal
-        session$userData$show_admin <- TRUE
-        
-        # Close the login overlay
-        session$sendCustomMessage(type = 'setHash', message = list(hash = ''))
-        
-        # Show admin dashboard modal
-        showModal(modalDialog(
-          title = tags$div(style = "display: flex; align-items: center; justify-content: space-between;",
-            tags$h3(style = "margin: 0; color: #1f2937;", "Admin Dashboard"),
-            actionButton('close_admin', 'Close', class = 'btn btn-secondary btn-sm')
-          ),
-          size = "l",
-          easyClose = FALSE,
-          div(style = "max-height: 70vh; overflow-y: auto;",
-            # Admin Stats
-            div(style = "display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px; margin-bottom: 24px;",
-              div(style = "background: #f8fafc; border-radius: 8px; padding: 16px; border-left: 4px solid #2563eb;",
-                tags$h4(style = "margin: 0 0 8px; color: #1f2937; font-size: 24px;", "247"),
-                tags$p(style = "margin: 0; color: #6b7280; font-size: 14px;", "Total Submissions"),
-                tags$p(style = "margin: 4px 0 0; color: #10b981; font-size: 12px;", "+12% from last month")
-              ),
-              div(style = "background: #f8fafc; border-radius: 8px; padding: 16px; border-left: 4px solid #d97706;",
-                tags$h4(style = "margin: 0 0 8px; color: #d97706; font-size: 24px;", "12"),
-                tags$p(style = "margin: 0; color: #6b7280; font-size: 14px;", "Pending Review"),
-                tags$p(style = "margin: 4px 0 0; color: #6b7280; font-size: 12px;", "Avg. processing: 2.3 days")
-              ),
-              div(style = "background: #f8fafc; border-radius: 8px; padding: 16px; border-left: 4px solid #059669;",
-                tags$h4(style = "margin: 0 0 8px; color: #059669; font-size: 24px;", "80.2%"),
-                tags$p(style = "margin: 0; color: #6b7280; font-size: 14px;", "Approval Rate"),
-                tags$p(style = "margin: 4px 0 0; color: #059669; font-size: 12px;", "Excellent performance")
-              ),
-              div(style = "background: #f8fafc; border-radius: 8px; padding: 16px; border-left: 4px solid #7c3aed;",
-                tags$h4(style = "margin: 0 0 8px; color: #1f2937; font-size: 24px;", "12/15"),
-                tags$p(style = "margin: 0; color: #6b7280; font-size: 14px;", "Active Institutions"),
-                tags$p(style = "margin: 4px 0 0; color: #059669; font-size: 12px;", "80% participation")
-              )
-            ),
-            
-            # Chart
-            div(style = "background: #f8fafc; border-radius: 8px; padding: 16px; margin-bottom: 16px;",
-              tags$h5(style = "margin: 0 0 16px; color: #1f2937;", "Submissions Over Time"),
-              plotlyOutput("admin_chart", height = "250px")
-            ),
-            
-            # Quick Actions
-            div(style = "background: #f8fafc; border-radius: 8px; padding: 16px;",
-              tags$h5(style = "margin: 0 0 16px; color: #1f2937;", "Quick Actions"),
-              div(style = "display: flex; gap: 12px; flex-wrap: wrap;",
-                actionButton('review_submissions', 'Review Submissions', class = 'btn btn-primary'),
-                actionButton('manage_users', 'Manage Users', class = 'btn btn-outline-primary'),
-                actionButton('system_settings', 'System Settings', class = 'btn btn-outline-secondary')
-              )
-            )
-          )
-        ))
+          # For admin, navigate to admin dashboard page
+          session$userData$show_admin <- TRUE
+          
+          # Close the login overlay and navigate to admin page
+          session$sendCustomMessage(type = 'setHash', message = list(hash = '#admin'))
       } else {
-        # for non-admin demo accounts simply close the login overlay
-        showModal(modalDialog(
-          title = 'Login Successful',
-          paste('Welcome,', matched$role, '! You have limited access.'),
-          easyClose = TRUE
-        ))
-        session$sendCustomMessage(type = 'setHash', message = list(hash = ''))
+          # For institution and reviewer accounts, navigate to institution dashboard page
+          session$userData$show_institution <- TRUE
+          
+          # Close the login overlay and navigate to institution page
+          session$sendCustomMessage(type = 'setHash', message = list(hash = '#institution'))
       }
     } else {
       showModal(modalDialog(
@@ -2818,7 +3068,7 @@ server <- function(input, output, session) {
       ))
     }
   })
-  
+
   # Admin dashboard chart
   output$admin_chart <- renderPlotly({
     months <- c("Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep")
@@ -2836,33 +3086,377 @@ server <- function(input, output, session) {
       )
   })
   
-  # Admin button handlers
-  observeEvent(input$close_admin, {
+  # Institution dashboard chart
+  output$institution_chart <- renderPlotly({
+    months <- c("Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep")
+    
+    if(!is.null(session$userData$current_user) && session$userData$current_user$role == "Institution") {
+      # Institution view - submission trends
+      submissions <- c(2, 3, 1, 4, 3, 2, 5, 4, 1)
+      plot_ly(x = months, y = submissions, type = 'scatter', mode = 'lines+markers', 
+              line = list(color = '#0ea5e9'), 
+              marker = list(color = '#0ea5e9', size = 8)) %>%
+        layout(
+          xaxis = list(title = 'Month', gridcolor = '#e5e7eb'),
+          yaxis = list(title = 'Submissions', gridcolor = '#e5e7eb'),
+          plot_bgcolor = '#ffffff',
+          paper_bgcolor = '#ffffff',
+          font = list(color = '#374151')
+        )
+    } else {
+      # Reviewer view - review activity
+      reviews <- c(5, 8, 6, 12, 9, 7, 15, 11, 4)
+      plot_ly(x = months, y = reviews, type = 'scatter', mode = 'lines+markers', 
+              line = list(color = '#10b981'), 
+              marker = list(color = '#10b981', size = 8)) %>%
+        layout(
+          xaxis = list(title = 'Month', gridcolor = '#e5e7eb'),
+          yaxis = list(title = 'Reviews Completed', gridcolor = '#e5e7eb'),
+          plot_bgcolor = '#ffffff',
+          paper_bgcolor = '#ffffff',
+          font = list(color = '#374151')
+        )
+    }
+  })
+  
+  # Admin Dashboard Outputs
+  output$admin_total_submissions <- renderText({
+    nrow(submissions_data())
+  })
+  
+  output$admin_submission_growth <- renderText({
+    "+12% from last month"
+  })
+  
+  output$admin_pending_reviews <- renderText({
+    nrow(submissions_data()[submissions_data()$status == "Pending", ])
+  })
+  
+  output$admin_avg_processing <- renderText({
+    "Avg. processing: 2.3 days"
+  })
+  
+  output$admin_approval_rate <- renderText({
+    approved <- nrow(submissions_data()[submissions_data()$status == "Approved", ])
+    total <- nrow(submissions_data())
+    paste0(round((approved/total) * 100, 1), "%")
+  })
+  
+  output$admin_performance <- renderText({
+    "Excellent performance"
+  })
+  
+  output$admin_active_institutions <- renderText({
+    "12/15"
+  })
+  
+  output$admin_participation <- renderText({
+    "80% participation"
+  })
+  
+  # Institution Dashboard Outputs
+  output$inst_welcome_message <- renderText({
+    if(!is.null(session$userData$current_user)) {
+      paste("Welcome,", session$userData$current_user$role, "!")
+    } else {
+      "Welcome, Institution!"
+    }
+  })
+  
+  output$inst_my_submissions <- renderText({
+    nrow(inst_submissions_data())
+  })
+  
+  output$inst_last_updated <- renderText({
+    "Last updated: 2 days ago"
+  })
+  
+  output$inst_approval_rate <- renderText({
+    approved <- nrow(inst_submissions_data()[inst_submissions_data()$status == "Approved", ])
+    total <- nrow(inst_submissions_data())
+    if(total > 0) {
+      paste0(round((approved/total) * 100, 1), "%")
+    } else {
+      "0%"
+    }
+  })
+  
+  output$inst_performance <- renderText({
+    "Above average"
+  })
+  
+  output$inst_pending_updates <- renderText({
+    nrow(inst_submissions_data()[inst_submissions_data()$status == "Pending", ])
+  })
+  
+  output$inst_due_date <- renderText({
+    "Due this week"
+  })
+  
+  # Data Tables
+  submissions_data <- reactive({
+    data.frame(
+      id = 1:20,
+      title = paste("Data Submission", 1:20),
+      institution = c(rep("Ministry of Health", 5), rep("Ministry of Education", 5), rep("Ministry of Agriculture", 5), rep("NISR", 5)),
+      category = sample(c("Health", "Education", "Agriculture", "Economic"), 20, replace = TRUE),
+      status = sample(c("Pending", "Approved", "Rejected"), 20, replace = TRUE, prob = c(0.3, 0.6, 0.1)),
+      submitted_date = Sys.Date() - sample(1:30, 20, replace = TRUE),
+      reviewer = sample(c("Admin User", "Reviewer 1", "Reviewer 2"), 20, replace = TRUE),
+      stringsAsFactors = FALSE
+    )
+  })
+  
+  inst_submissions_data <- reactive({
+    data.frame(
+      id = 1:15,
+      title = paste("My Submission", 1:15),
+      category = sample(c("Health", "Education", "Agriculture", "Economic"), 15, replace = TRUE),
+      status = sample(c("Pending", "Approved", "Rejected"), 15, replace = TRUE, prob = c(0.2, 0.7, 0.1)),
+      submitted_date = Sys.Date() - sample(1:30, 15, replace = TRUE),
+      reviewer = sample(c("Admin User", "Reviewer 1", "Reviewer 2"), 15, replace = TRUE),
+      stringsAsFactors = FALSE
+    )
+  })
+  
+  # Admin Data Tables
+  output$admin_recent_activity <- DT::renderDataTable({
+    recent_activity <- data.frame(
+      time = Sys.time() - runif(10, 0, 3600),
+      action = sample(c("New submission", "Approved data", "Rejected data", "User login", "System backup"), 10, replace = TRUE),
+      user = sample(c("Admin", "Reviewer 1", "Ministry of Health", "NISR"), 10, replace = TRUE),
+      details = paste("Action performed on", sample(c("Health Data", "Education Data", "Economic Data"), 10, replace = TRUE)),
+      stringsAsFactors = FALSE
+    )
+    
+    DT::datatable(recent_activity, 
+                  options = list(pageLength = 5, dom = 't', ordering = FALSE),
+                  rownames = FALSE) %>%
+      DT::formatStyle(columns = 1:4, fontSize = '12px')
+  })
+  
+  output$admin_submissions_table <- DT::renderDataTable({
+    data <- submissions_data()
+    if(input$submission_filter != "All") {
+      data <- data[data$status == input$submission_filter, ]
+    }
+    
+    DT::datatable(data, 
+                  options = list(pageLength = 10, dom = 'frtip'),
+                  rownames = FALSE,
+                  selection = 'single') %>%
+      DT::formatStyle(columns = 1:7, fontSize = '12px') %>%
+      DT::formatDate(columns = 6, method = 'toLocaleDateString')
+  })
+  
+  output$admin_users_table <- DT::renderDataTable({
+    users_data <- data.frame(
+      id = 1:25,
+      name = paste("User", 1:25),
+      email = paste("user", 1:25, "@example.com"),
+      role = sample(c("Admin", "Reviewer", "Institution"), 25, replace = TRUE, prob = c(0.1, 0.3, 0.6)),
+      institution = sample(c("Ministry of Health", "Ministry of Education", "NISR", "Ministry of Agriculture"), 25, replace = TRUE),
+      status = sample(c("Active", "Inactive"), 25, replace = TRUE, prob = c(0.9, 0.1)),
+      last_login = Sys.Date() - sample(1:30, 25, replace = TRUE),
+      stringsAsFactors = FALSE
+    )
+    
+    DT::datatable(users_data, 
+                  options = list(pageLength = 10, dom = 'frtip'),
+                  rownames = FALSE,
+                  selection = 'single') %>%
+      DT::formatStyle(columns = 1:7, fontSize = '12px') %>%
+      DT::formatDate(columns = 7, method = 'toLocaleDateString')
+  })
+  
+  # Institution Data Tables
+  output$inst_recent_submissions <- DT::renderDataTable({
+    recent_data <- inst_submissions_data()[1:5, ]
+    
+    DT::datatable(recent_data, 
+                  options = list(pageLength = 5, dom = 't', ordering = FALSE),
+                  rownames = FALSE) %>%
+      DT::formatStyle(columns = 1:6, fontSize = '12px') %>%
+      DT::formatDate(columns = 5, method = 'toLocaleDateString')
+  })
+  
+  output$inst_submissions_table <- DT::renderDataTable({
+    data <- inst_submissions_data()
+    if(input$inst_submission_filter != "All") {
+      data <- data[data$status == input$inst_submission_filter, ]
+    }
+    
+    DT::datatable(data, 
+                  options = list(pageLength = 10, dom = 'frtip'),
+                  rownames = FALSE,
+                  selection = 'single') %>%
+      DT::formatStyle(columns = 1:6, fontSize = '12px') %>%
+      DT::formatDate(columns = 5, method = 'toLocaleDateString')
+  })
+  
+  output$inst_analytics_table <- DT::renderDataTable({
+    analytics_data <- data.frame(
+      metric = c("Data Quality Score", "Submission Frequency", "Approval Rate", "Response Time", "Data Completeness"),
+      value = c("92%", "3.2/week", "87%", "1.8 days", "94%"),
+      trend = c("↗ +5%", "↗ +12%", "↗ +3%", "↘ -0.5 days", "↗ +2%"),
+      benchmark = c("85%", "2.5/week", "80%", "2.0 days", "90%"),
+      stringsAsFactors = FALSE
+    )
+    
+    DT::datatable(analytics_data, 
+                  options = list(pageLength = 10, dom = 't', ordering = FALSE),
+                  rownames = FALSE) %>%
+      DT::formatStyle(columns = 1:4, fontSize = '12px')
+  })
+  
+  # Additional Charts
+  output$admin_institution_chart <- renderPlotly({
+    institutions <- c("Ministry of Health", "Ministry of Education", "NISR", "Ministry of Agriculture", "Ministry of Finance")
+    submissions <- c(45, 38, 52, 41, 35)
+    
+    plot_ly(x = submissions, y = institutions, type = 'bar', orientation = 'h',
+            marker = list(color = '#2563eb')) %>%
+      layout(
+        title = "",
+        xaxis = list(title = 'Submissions'),
+        yaxis = list(title = ''),
+        plot_bgcolor = '#ffffff',
+        paper_bgcolor = '#ffffff',
+        font = list(color = '#374151')
+      )
+  })
+  
+  output$inst_performance_chart <- renderPlotly({
+    months <- c("Jan", "Feb", "Mar", "Apr", "May", "Jun")
+    performance <- c(85, 88, 92, 89, 94, 91)
+    
+    plot_ly(x = months, y = performance, type = 'scatter', mode = 'lines+markers',
+            line = list(color = '#0ea5e9', width = 3),
+            marker = list(color = '#0ea5e9', size = 8)) %>%
+      layout(
+        title = "",
+        xaxis = list(title = 'Month'),
+        yaxis = list(title = 'Performance Score'),
+        plot_bgcolor = '#ffffff',
+        paper_bgcolor = '#ffffff',
+        font = list(color = '#374151')
+      )
+  })
+  
+  output$inst_quality_chart <- renderPlotly({
+    categories <- c("Completeness", "Accuracy", "Timeliness", "Consistency", "Validity")
+    scores <- c(94, 89, 92, 87, 91)
+    
+    plot_ly(x = categories, y = scores, type = 'bar',
+            marker = list(color = '#10b981')) %>%
+      layout(
+        title = "",
+        xaxis = list(title = 'Quality Dimension'),
+        yaxis = list(title = 'Score (%)'),
+        plot_bgcolor = '#ffffff',
+        paper_bgcolor = '#ffffff',
+        font = list(color = '#374151')
+      )
+  })
+  
+  # Admin Dashboard Button Handlers
+  observeEvent(input$refresh_submissions, {
+    showNotification("Submissions data refreshed!", type = "success")
+  })
+  
+  observeEvent(input$add_user, {
+    showModal(modalDialog(
+      title = "Add New User",
+      div(
+        textInput("new_user_name", "Full Name:", width = "100%"),
+        textInput("new_user_email", "Email:", width = "100%"),
+        selectInput("new_user_role", "Role:", choices = c("Admin", "Reviewer", "Institution"), width = "100%"),
+        selectInput("new_user_institution", "Institution:", choices = c("Ministry of Health", "Ministry of Education", "NISR", "Ministry of Agriculture"), width = "100%"),
+        br(),
+        div(style = "display: flex; gap: 8px;",
+          actionButton("confirm_add_user", "Add User", class = "btn btn-primary"),
+          actionButton("cancel_add_user", "Cancel", class = "btn btn-secondary")
+        )
+      ),
+      size = "m",
+      easyClose = TRUE
+    ))
+  })
+  
+  observeEvent(input$confirm_add_user, {
+    removeModal()
+    showNotification("User added successfully!", type = "success")
+  })
+  
+  observeEvent(input$cancel_add_user, {
     removeModal()
   })
   
-  observeEvent(input$review_submissions, {
-    showModal(modalDialog(
-      title = "Review Submissions",
-      "This would open the submissions review interface.",
-      easyClose = TRUE
-    ))
+  observeEvent(input$export_users, {
+    showNotification("User data exported to CSV!", type = "success")
   })
   
-  observeEvent(input$manage_users, {
-    showModal(modalDialog(
-      title = "Manage Users",
-      "This would open the user management interface.",
-      easyClose = TRUE
-    ))
+  observeEvent(input$save_settings, {
+    showNotification("Settings saved successfully!", type = "success")
   })
   
-  observeEvent(input$system_settings, {
-    showModal(modalDialog(
-      title = "System Settings",
-      "This would open the system settings interface.",
-      easyClose = TRUE
-    ))
+  observeEvent(input$test_connection, {
+    showNotification("Database connection test successful!", type = "success")
+  })
+  
+  # Institution Dashboard Button Handlers
+  observeEvent(input$quick_submit, {
+    updateTabsetPanel(session, "inst_tab", "submissions")
+  })
+  
+  observeEvent(input$quick_view, {
+    updateTabsetPanel(session, "inst_tab", "submissions")
+  })
+  
+  observeEvent(input$quick_analytics, {
+    updateTabsetPanel(session, "inst_tab", "analytics")
+  })
+  
+  observeEvent(input$submit_data, {
+    if(is.null(input$data_file)) {
+      showNotification("Please select a file to upload!", type = "error")
+      return()
+    }
+    if(input$data_title == "") {
+      showNotification("Please enter a data title!", type = "error")
+      return()
+    }
+    
+    showNotification("Data submitted successfully! It will be reviewed within 2-3 business days.", type = "success")
+    
+    # Reset form
+    updateTextInput(session, "data_title", value = "")
+    updateTextAreaInput(session, "data_description", value = "")
+  })
+  
+  observeEvent(input$save_draft, {
+    showNotification("Draft saved successfully!", type = "success")
+  })
+  
+  observeEvent(input$refresh_inst_submissions, {
+    showNotification("Submissions data refreshed!", type = "success")
+  })
+  
+  observeEvent(input$update_profile, {
+    showNotification("Profile updated successfully!", type = "success")
+  })
+  
+  observeEvent(input$update_notifications, {
+    showNotification("Notification settings updated!", type = "success")
+  })
+  
+  # Tab Navigation Handlers
+  observeEvent(input$admin_tab, {
+    # Tab switching is handled by conditionalPanel
+  })
+  
+  observeEvent(input$inst_tab, {
+    # Tab switching is handled by conditionalPanel
   })
 
   
