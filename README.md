@@ -1,78 +1,301 @@
-# NDIP — National Data Intelligence Platform (Rwanda)
+# NDIP - National Data Intelligence Platform
 
-Live demo: https://gatete-jimmy.shinyapps.io/NDIP-CODES/
+[![R](https://img.shields.io/badge/R-4.0+-blue.svg)](https://www.r-project.org/)
+[![Shiny](https://img.shields.io/badge/Shiny-1.7+-green.svg)](https://shiny.rstudio.com/)
+[![PostgreSQL](https://img.shields.io/badge/PostgreSQL-Neon-orange.svg)](https://neon.tech/)
 
-Overview
---------
+A comprehensive data management and visualization platform for Rwanda's National Data Intelligence Platform, featuring automated workflow from data submission to publication.
 
-NDIP (National Data Intelligence Platform) is an interactive Shiny-based platform that brings together official Rwandan statistics and institution-submitted datasets into a single, real-time analytics environment. The platform is designed to support fast, evidence-based decision-making by government agencies, institutions and analysts.
+## 🎯 Features
 
-What the platform aims at
--------------------------
+- **🔐 Multi-Role Authentication**: Admin, Institution, and Reviewer roles with secure session management
+- **📤 Data Submission Workflow**: Institutions upload datasets with sector classification
+- **✅ Review & Approval System**: Reviewers evaluate and approve/reject submissions
+- **📊 Live Dashboard Publishing**: Admins publish approved datasets to live dashboards
+- **🔔 Real-time Notifications**: Automated notifications at each workflow stage
+- **📈 Interactive Visualizations**: Plotly charts for data exploration
+- **🔍 Audit Trail**: Complete logging of all system actions
 
-- Real-time national insights: provide up-to-date visualisations and indicators across key development sectors (Economy, Health, Education, Agriculture, Demographics, Tourism, Governance). Dashboards surface trends, KPIs and alerts so policymakers and analysts can spot changes quickly.
-- Data upload & review portal: enable institutions to securely upload datasets (CSV/Excel/JSON). Each upload runs lightweight validation and metadata checks, and then flows into a review queue for admin/reviewer approval before being included in production analytics.
-- Fast analytics pipeline: ingested and approved data are integrated into interactive charts and summary KPIs. Analysts can filter by time, region and category to generate near-real-time reports for operational decisions.
-- Decision support: the platform includes pre-built views (national overview, sector dashboards, and predictive widgets) and exportable data slices so decision-makers can act on validated insights.
-- Governance & traceability: every uploaded dataset is tracked (uploader, timestamp, version), reviewers can leave notes, and approvals/rejections are recorded to maintain data provenance and trust.
+## 🏗️ Architecture
 
-Realtime insights (examples)
----------------------------
-
-- Population trends and projections (yearly updates, regional breakdowns)
-- GDP growth and sector contributions (quarterly updates, interactive drill-downs)
-- Health system indicators (facility coverage, vital stats, disease surveillance summaries)
-- Education enrollment and school-type percentages (time-series and cohort comparisons)
-- Inflation and production output indicators with alerting for significant changes
-
-Data upload & review portal (workflow)
--------------------------------------
-
-1. Institution uploads dataset via the portal (CSV/Excel/JSON). The upload form collects metadata (title, description, category, contact email).
-2. Automated checks run: file format, required columns presence, simple range/consistency checks and basic schema validation.
-3. If checks pass, the submission enters the review queue. If checks fail, the uploader receives immediate feedback to correct issues.
-4. Reviewer/Admin inspects the submission, requests changes or approves. Review notes and actions are recorded.
-5. Approved datasets are published into the analytics pipeline and become available in dashboards and exports; rejected datasets remain in the uploader's drafts.
-
-How this helps decision-making
------------------------------
-
-- Faster cycles: institutions can provide updated data as soon as it’s available, reducing lag between collection and policy action.
-- Trusted inputs: validation and reviewer workflows improve data quality and build confidence among decision-makers.
-- Actionable views: curated dashboards and alerts focus attention on metrics that matter for budgeting, interventions and monitoring.
-
-What you’ll find in this repository
------------------------------------
-
-- `NDIP PROJECT 1.R` — The main Shiny app (UI + server, dashboards, upload and review flows).
-- `admin_dashboard_app.R` — Admin-focused dashboard and review tools.
-- `standalone_login_app.R`, `institution_upload_app.R` — Smaller helpers for authentication and uploads.
-- `install_packages.R` — Installs required R packages used by the apps.
-- `NDIP DATASETS- economic schema/` — Example source CSVs used by the app.
-- `www/` — Static assets (CSS, images, footer markup).
-
-Dependencies & running locally
-------------------------------
-See `install_packages.R` for core R package installation. To run locally inside R/RStudio:
-
-```r
-source('install_packages.R')
-runApp('NDIP PROJECT 1.R')
+```
+┌─────────────┐
+│  Institution│  Uploads Data
+└──────┬──────┘
+       │
+       ▼
+┌─────────────┐
+│  Reviewer   │  Reviews & Approves
+└──────┬──────┘
+       │
+       ▼
+┌─────────────┐
+│   Admin     │  Publishes to Live Dashboard
+└──────┬──────┘
+       │
+       ▼
+┌─────────────┐
+│ Live Data   │  Available in Sector Dashboards
+└─────────────┘
 ```
 
-Security & notes
-----------------
+## 📁 Project Structure
 
-- Authentication in the codebase contains demo credentials: replace with a secure system before production rollout.
-- The upload pipeline performs basic validation — consider adding schema-driven validation and automated unit tests for ingestion logic.
-- For production use, plan for proper logging, backups, and role-based access control.
+```
+NDIP.CODES.111.gatete/
+├── app.R                          # Main Shiny application
+├── check_database_status.R        # Database verification utility
+├── README.md                      # This file
+│
+├── modules/                       # Shiny modules
+│   ├── login_module.R            # Authentication system
+│   ├── admin_dashboard.R         # Admin dashboard (publish/pull-back)
+│   ├── institution_dashboard.R   # Institution upload center
+│   ├── reviewer_dashboard.R      # Reviewer approval system
+│   ├── economic_dashboard_module.R
+│   ├── health_education_dashboard_module.R
+│   ├── demographics_agriculture_dashboard_module.R
+│   ├── session_manager.R        # Session management
+│   └── global.R                  # Shared utilities
+│
+├── scripts/                       # Backend scripts
+│   ├── db_connection.R           # Database connection manager
+│   ├── notifications.R           # Notification system
+│   ├── audit_log.R               # Audit logging
+│   ├── automation_workflow.R     # Workflow automation
+│   ├── publish_data.R            # Data publishing functions
+│   │
+│   ├── database/                 # Database setup
+│   │   ├── 01_create_schemas_and_tables.sql
+│   │   ├── 02_add_sample_data.sql
+│   │   ├── 03_create_admin_dashboard_tables.sql
+│   │   ├── 04_create_reviewer_dashboard_tables.sql
+│   │   ├── 05_add_reviewer_sample_data.sql
+│   │   ├── 06_create_trade_table.sql
+│   │   ├── 07_create_ndip_schema.sql
+│   │   ├── 08_create_live_data_table.sql
+│   │   ├── 09_update_submissions_schema.sql
+│   │   └── setup_*.R             # Setup scripts
+│   │
+│   ├── deployment/                # Deployment configuration
+│   │   ├── deploy_shinyapps.R
+│   │   └── Dockerfile
+│   │
+│   └── setup/
+│       └── install_packages.R
+│
+├── data/
+│   ├── datasets/                  # Sample datasets
+│   └── uploads/                   # User uploads (gitignored)
+│
+└── www/                           # Static assets
+    ├── custom.css
+    └── *.jpg                      # Images
+```
 
-Contributing & contact
------------------------
+## 🚀 Quick Start
 
-Open issues or pull requests for enhancements. For help with deployment, integration or refactoring into modular Shiny components, contact the repository owner.
+### Prerequisites
 
-License
--------
+- R (>= 4.0.0)
+- RStudio (recommended)
+- Neon PostgreSQL database account
 
-Add a LICENSE file to declare the project license.
+### Installation
+
+1. **Clone the repository**
+   ```bash
+   git clone <repository-url>
+   cd NDIP.CODES.111.gatete
+   ```
+
+2. **Install R packages**
+   ```r
+   source("scripts/setup/install_packages.R")
+   ```
+
+3. **Configure database connection**
+   
+   Edit `scripts/db_connection.R` and set your Neon PostgreSQL connection string:
+   ```r
+   NEON_CONNECTION_STRING <- "postgresql://user:password@host/database?sslmode=require"
+   ```
+
+4. **Setup database schema**
+   ```r
+   # Run database setup scripts in order
+   source("scripts/database/setup_database.R")
+   source("scripts/database/add_sample_data.R")
+   
+   # Verify setup
+   source("check_database_status.R")
+   ```
+
+5. **Run the application**
+   ```r
+   shiny::runApp("app.R")
+   ```
+
+## 👤 Demo Accounts
+
+| Role | Email | Password | Access |
+|------|-------|----------|--------|
+| **Admin** | `admin@nisr.gov.rw` | `demo123` | Full access, publish datasets |
+| **Institution** | `health@moh.gov.rw` | `demo123` | Upload datasets, track status |
+| **Reviewer** | `reviewer@nisr.gov.rw` | `demo123` | Review & approve submissions |
+
+## 🔄 Workflow
+
+1. **Institution Uploads Data**
+   - Institution logs in and uploads CSV/Excel file
+   - Selects sector (Economic, Health/Education, Demographics/Agriculture)
+   - Adds description and submits
+   - Status: `submitted`
+
+2. **Reviewer Reviews**
+   - Reviewer receives notification
+   - Reviews submission in dashboard
+   - Approves or rejects with comments
+   - Status: `approved` or `rejected`
+
+3. **Admin Publishes**
+   - Admin receives notification for approved datasets
+   - Reviews and publishes to live dashboard
+   - Data becomes available in sector-specific dashboards
+   - Status: `published`
+
+4. **Live Dashboard**
+   - Published data appears in sector dashboards
+   - Interactive visualizations and charts
+   - Real-time data updates
+
+## 🗄️ Database Schema
+
+### Key Tables
+
+- `auth.users` - User accounts and authentication
+- `uploads.data_submissions` - Dataset submission metadata
+- `review.review_actions` - Review decisions and comments
+- `ndip.notifications` - System notifications
+- `ndip.audit_logs` - Audit trail
+- `ndip.live_data` - Published datasets (JSONB format)
+
+### Status Values
+
+- `submitted` - Initial state after upload
+- `under_review` - Reviewer is reviewing
+- `approved` - Reviewer approved, awaiting admin
+- `rejected` - Reviewer rejected
+- `published` - Published to live dashboards
+- `pulled_back` - Removed from live dashboards
+
+## 🛠️ Technology Stack
+
+- **Frontend**: Shiny, HTML5, CSS3, JavaScript
+- **Backend**: R (Shiny Server)
+- **Database**: Neon PostgreSQL
+- **Visualization**: Plotly, DT (DataTables)
+- **Deployment**: ShinyApps.io / Docker
+
+## 📦 Key R Packages
+
+```r
+shiny          # Web framework
+DT             # Interactive tables
+plotly         # Interactive charts
+DBI            # Database interface
+RPostgres      # PostgreSQL connector
+dplyr          # Data manipulation
+readxl         # Excel file reading
+jsonlite       # JSON handling
+```
+
+## 🔧 Configuration
+
+### Environment Variables
+
+Create a `.Renviron` file (not tracked in git):
+
+```r
+NEON_CONNECTION_STRING=postgresql://user:pass@host/db?sslmode=require
+```
+
+### Database Setup
+
+Run SQL scripts in order:
+1. `01_create_schemas_and_tables.sql`
+2. `02_add_sample_data.sql`
+3. `03_create_admin_dashboard_tables.sql`
+4. `04_create_reviewer_dashboard_tables.sql`
+5. `07_create_ndip_schema.sql`
+6. `08_create_live_data_table.sql`
+7. `09_update_submissions_schema.sql`
+
+## 🚢 Deployment
+
+### ShinyApps.io
+
+```r
+source("scripts/deployment/deploy_shinyapps.R")
+```
+
+### Docker
+
+```bash
+docker build -t ndip-dashboard -f scripts/deployment/Dockerfile .
+docker run -p 3838:3838 ndip-dashboard
+```
+
+## 🐛 Troubleshooting
+
+### Database Connection Issues
+```r
+source("check_database_status.R")
+```
+
+### Performance Issues
+- Check database connection pooling
+- Verify indexes are created
+- Review reactive polling intervals
+
+### Login Not Working
+- Clear browser cache
+- Verify database users exist
+- Check connection string
+
+## 📝 Development
+
+### Adding New Features
+
+1. Create module in `modules/`
+2. Source in `app.R`
+3. Add UI and server functions
+4. Test locally
+5. Update documentation
+
+### Code Style
+
+- Use meaningful variable names
+- Add comments for complex logic
+- Follow Shiny best practices
+- Optimize database queries
+
+## 📄 License
+
+© 2025 National Institute of Statistics Rwanda (NISR)
+
+## 👥 Contributors
+
+- **Project Lead**: NISR Data Team
+- **Developer**: gatete-jimmy
+
+## 📞 Support
+
+For questions or issues:
+- Email: admin@nisr.gov.rw
+- Create an issue in the repository
+
+---
+
+**Version**: 1.0.0  
+**Last Updated**: January 2025

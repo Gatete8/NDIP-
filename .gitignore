@@ -1,6 +1,66 @@
-/.Renviron
+# R Environment
+.Renviron
 .Rhistory
 .RData
 .Rproj.user/
+.Rproj
+*.Rproj
+
+# R Package Management
 renv/library/
 renv/staging/
+renv/activate.R
+renv.lock
+
+# Shiny
+rsconnect/
+*.log
+
+# Data files (user uploads and sensitive data)
+data/uploads/*
+!data/uploads/.gitkeep
+data/*.csv
+data/*.xlsx
+data/*.xls
+!data/datasets/.gitkeep
+
+# Database credentials
+*.env
+.env
+config/database.yml
+
+# OS files
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Temporary files
+*.tmp
+*.temp
+*.bak
+*.backup
+
+# Compiled files
+*.o
+*.so
+*.dll
+
+# Logs
+*.log
+logs/
+
+# Cache
+.Rcache/
+cache/
+
+# Old/unused directories
+NDIP/
+NDIP MAIN/
+NDIP.gatete/
