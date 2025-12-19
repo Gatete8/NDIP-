@@ -11,6 +11,14 @@ source("modules/global.R")
 # Source database connection
 source("scripts/db_connection.R")
 
+# Warm up DB pool at startup (prevents first-dashboard delay)
+tryCatch({
+  init_connection_pool()
+  message("[POOL] ✅ Warm pool ready")
+}, error = function(e) {
+  message(sprintf("[POOL] ⚠️ Pool warm-up skipped: %s", e$message))
+})
+
 # Source login module
 source("modules/login_module.R")
 
@@ -58,8 +66,8 @@ body > div:last-of-type {
   --primary-blue: #0B78A0;
   --primary-blue-dark: #085a75;
   --primary-blue-light: #0ea5e9;
-  --secondary-green: #157A4A;
-  --secondary-green-dark: #0f5a36;
+  --secondary-blue: #0284c7;
+  --secondary-blue-dark: #0369a1;
   --accent-gold: #f59e0b;
   --text-primary: #0f172a;
   --text-secondary: #475569;
@@ -83,6 +91,16 @@ html, body {
   margin: 0;
   padding: 0;
   overflow-x: hidden;
+  /* Hide the right-edge page scrollbar/indicator while keeping scroll enabled */
+  scrollbar-width: none;        /* Firefox */
+  -ms-overflow-style: none;     /* IE/old Edge */
+}
+
+/* Chrome/Safari/Edge (WebKit/Blink) scrollbar hiding */
+html::-webkit-scrollbar,
+body::-webkit-scrollbar {
+  width: 0;
+  height: 0;
 }
 
 body { 
@@ -154,7 +172,7 @@ html {
   left: 0;
   right: 0;
   height: 4px;
-  background: linear-gradient(90deg, var(--primary-blue), var(--secondary-green));
+  background: linear-gradient(90deg, var(--primary-blue), var(--secondary-blue));
   transform: scaleX(0);
   transform-origin: left;
   transition: transform 0.4s ease;
@@ -198,7 +216,7 @@ html {
 
 .infobox.production { 
   background: linear-gradient(135deg, rgba(255, 246, 246, 0.9) 0%, rgba(255, 239, 239, 0.9) 100%);
-  border-left: 4px solid var(--secondary-green);
+  border-left: 4px solid var(--secondary-blue);
 }
 
 /* subtle pulse when new data loads */
@@ -266,7 +284,7 @@ html {
   left: 0;
   right: 0;
   bottom: 0;
-  background: linear-gradient(135deg, rgba(11, 120, 160, 0.1) 0%, rgba(21, 122, 74, 0.1) 100%);
+  background: linear-gradient(135deg, rgba(11, 120, 160, 0.1) 0%, rgba(2, 132, 199, 0.1) 100%);
   opacity: 0;
   transition: opacity 0.3s ease;
   border-radius: 12px;
@@ -486,6 +504,14 @@ html {
   width: 100%;
 }
 
+/* Override section padding for video hero */
+#home.section,
+#home.hero-video-wrapper {
+  padding: 0;
+  max-width: 100%;
+  margin: 0;
+}
+
 .hero {
   display: flex;
   gap: 60px;
@@ -501,9 +527,11 @@ html {
   max-width: 600px;
 }
 
+/* Legacy hero styles for other sections (if needed) */
+
 .hero-left .badge { 
   display: inline-block; 
-  background: linear-gradient(135deg, rgba(11, 120, 160, 0.1) 0%, rgba(21, 122, 74, 0.1) 100%);
+  background: linear-gradient(135deg, rgba(11, 120, 160, 0.1) 0%, rgba(2, 132, 199, 0.1) 100%);
   backdrop-filter: blur(10px);
   -webkit-backdrop-filter: blur(10px);
   color: var(--primary-blue); 
@@ -530,7 +558,7 @@ html {
   margin: 0 0 20px 0; 
   line-height: 1.1;
   letter-spacing: -1.5px;
-  background: linear-gradient(135deg, var(--text-primary) 0%, var(--primary-blue) 50%, var(--secondary-green) 100%);
+  background: linear-gradient(135deg, var(--text-primary) 0%, var(--primary-blue) 50%, var(--secondary-blue) 100%);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
@@ -618,134 +646,241 @@ html {
   box-shadow: var(--shadow-lg);
 }
 
-/* Professional Image Carousel */
-.hero-right { 
-  flex: 0 0 500px;
-  max-width: 500px;
-  width: 100%;
-}
-
-.carousel-container { 
+/* Professional Video Background Hero */
+.hero-video-wrapper {
   position: relative;
-  width: 100%; 
-  height: 400px; 
-  overflow: hidden; 
-  border-radius: 24px; 
-  box-shadow: var(--shadow-2xl), 0 0 0 1px rgba(255, 255, 255, 0.1) inset;
-  border: 1px solid rgba(226, 232, 240, 0.5);
-  transition: all 0.3s ease;
-}
-
-.carousel-container:hover {
-  box-shadow: var(--shadow-2xl), 0 0 40px rgba(11, 120, 160, 0.2);
-  transform: scale(1.01);
-}
-
-.carousel-track { 
-  display: flex; 
-  width: 500%; 
-  height: 100%; 
-  animation: slide 15s infinite; 
-}
-
-.carousel-slide { 
-  width: 20%; 
-  height: 100%; 
-}
-
-.carousel-slide img { 
   width: 100%;
-  height: 100%; 
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  background: linear-gradient(135deg, #0B78A0 0%, #0284c7 100%);
+}
+
+.hero-video-background {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 100%;
+  height: 100%;
   object-fit: cover;
+  transform: translate(-50%, -50%);
+  z-index: 1;
+  opacity: 0.85;
 }
 
-.carousel-dots { 
-  position: absolute; 
-  bottom: 20px; 
-  left: 50%; 
-  transform: translateX(-50%); 
-  display: flex; 
-  gap: 8px; 
+.hero-video-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(
+    135deg,
+    rgba(11, 120, 160, 0.55) 0%,
+    rgba(2, 132, 199, 0.45) 50%,
+    rgba(11, 120, 160, 0.55) 100%
+  );
+  z-index: 2;
+  backdrop-filter: blur(1px);
+  -webkit-backdrop-filter: blur(1px);
 }
 
-.dot { 
-  width: 10px; 
-  height: 10px; 
-  border-radius: 50%; 
-  background: rgba(255,255,255,0.5); 
-  cursor: pointer; 
-  transition: background 0.3s; 
+.hero-video-content {
+  position: relative;
+  z-index: 3;
+  width: 100%;
+  max-width: 1200px;
+  padding: 120px 40px 80px;
+  text-align: center;
+  color: #ffffff;
 }
 
-.dot.active { 
-  background: #ffffff; 
+.hero-video-content .badge {
+  display: inline-block;
+  background: rgba(255, 255, 255, 0.2);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  color: #ffffff;
+  padding: 12px 24px;
+  border-radius: 30px;
+  font-weight: 700;
+  font-size: 14px;
+  margin-bottom: 30px;
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  animation: fadeInUp 0.8s ease-out;
 }
 
-@keyframes slide { 
-  0%, 20% { transform: translateX(0%); }
-  25%, 45% { transform: translateX(-20%); }
-  50%, 70% { transform: translateX(-40%); }
-  75%, 95% { transform: translateX(-60%); }
-  100% { transform: translateX(-80%); }
+.hero-video-content .hero-title {
+  font-size: 64px;
+  font-weight: 900;
+  color: #ffffff;
+  margin: 0 0 30px 0;
+  line-height: 1.1;
+  letter-spacing: -2px;
+  text-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+  animation: fadeInUp 0.8s ease-out 0.2s both;
 }
 
-/* Responsive Design */
+.hero-video-content .hero-sub {
+  font-size: 24px;
+  color: rgba(255, 255, 255, 0.95);
+  margin-bottom: 50px;
+  line-height: 1.7;
+  font-weight: 400;
+  letter-spacing: -0.3px;
+  text-shadow: 0 2px 10px rgba(0, 0, 0, 0.2);
+  max-width: 800px;
+  margin-left: auto;
+  margin-right: auto;
+  animation: fadeInUp 0.8s ease-out 0.4s both;
+}
+
+.hero-video-content .hero-ctas {
+  display: flex;
+  gap: 20px;
+  justify-content: center;
+  flex-wrap: wrap;
+  animation: fadeInUp 0.8s ease-out 0.6s both;
+}
+
+.hero-video-content .btn-primary {
+  background: rgba(255, 255, 255, 0.95);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  color: var(--primary-blue);
+  padding: 18px 40px;
+  border-radius: 16px;
+  font-weight: 700;
+  text-decoration: none;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  border: 2px solid rgba(255, 255, 255, 0.5);
+  cursor: pointer;
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.2);
+  position: relative;
+  overflow: hidden;
+  letter-spacing: 0.5px;
+  font-size: 16px;
+}
+
+.hero-video-content .btn-primary::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: -100%;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(90deg, transparent, rgba(11, 120, 160, 0.2), transparent);
+  transition: left 0.5s ease;
+}
+
+.hero-video-content .btn-primary:hover::before {
+  left: 100%;
+}
+
+.hero-video-content .btn-primary:hover {
+  background: #ffffff;
+  transform: translateY(-4px);
+  box-shadow: 0 15px 50px rgba(0, 0, 0, 0.3);
+  border-color: rgba(255, 255, 255, 0.8);
+}
+
+.hero-video-content .btn-outline {
+  background: rgba(255, 255, 255, 0.15);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 2px solid rgba(255, 255, 255, 0.5);
+  color: #ffffff;
+  padding: 18px 40px;
+  border-radius: 16px;
+  text-decoration: none;
+  font-weight: 700;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.15);
+  letter-spacing: 0.5px;
+  font-size: 16px;
+}
+
+.hero-video-content .btn-outline:hover {
+  background: rgba(255, 255, 255, 0.25);
+  border-color: rgba(255, 255, 255, 0.8);
+  transform: translateY(-4px);
+  box-shadow: 0 15px 50px rgba(0, 0, 0, 0.25);
+}
+
+@keyframes fadeInUp {
+  from {
+    opacity: 0;
+    transform: translateY(30px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Responsive Design for Video Hero */
 @media (max-width: 1024px) {
-  .hero {
-    gap: 40px;
-    padding: 30px 0;
+  .hero-video-content {
+    padding: 100px 30px 60px;
   }
-  .hero-right {
-    flex: 0 0 400px;
-    max-width: 400px;
+  .hero-video-content .hero-title {
+    font-size: 52px;
   }
-  .carousel-container {
-    height: 300px;
+  .hero-video-content .hero-sub {
+    font-size: 20px;
   }
 }
 
 @media (max-width: 768px) {
-  .hero {
-    flex-direction: column;
-    gap: 40px;
-    text-align: center;
+  .hero-video-wrapper {
+    min-height: 80vh;
   }
-  .hero-right {
-    flex: 1;
-    max-width: 100%;
+  .hero-video-content {
+    padding: 80px 20px 50px;
   }
-  .carousel-container {
-    height: 250px;
+  .hero-video-content .hero-title {
+    font-size: 42px;
+    letter-spacing: -1px;
   }
-  .hero-left .hero-title {
-    font-size: 36px;
-  }
-  .hero-left .hero-sub {
+  .hero-video-content .hero-sub {
     font-size: 18px;
+    margin-bottom: 40px;
   }
-  .hero-left .hero-ctas {
-    justify-content: center;
-    flex-wrap: wrap;
+  .hero-video-content .hero-ctas {
+    flex-direction: column;
+    align-items: center;
+  }
+  .hero-video-content .btn-primary,
+  .hero-video-content .btn-outline {
+    width: 100%;
+    max-width: 300px;
   }
 }
 
 @media (max-width: 480px) {
-  .section {
-    padding: 60px 16px 30px;
+  .hero-video-wrapper {
+    min-height: 70vh;
   }
-  .hero-left .hero-title {
-    font-size: 28px;
+  .hero-video-content {
+    padding: 60px 16px 40px;
   }
-  .hero-left .hero-sub {
+  .hero-video-content .hero-title {
+    font-size: 32px;
+    margin-bottom: 20px;
+  }
+  .hero-video-content .hero-sub {
     font-size: 16px;
+    margin-bottom: 30px;
   }
-  .hero-left .btn-primary,
-  .hero-left .btn-outline {
-    padding: 12px 20px;
+  .hero-video-content .btn-primary,
+  .hero-video-content .btn-outline {
+    padding: 14px 24px;
     font-size: 14px;
-  }
-  .carousel-container {
-    height: 200px;
   }
 }
 
@@ -784,7 +919,7 @@ html {
   left: 0;
   right: 0;
   bottom: 0;
-  background: linear-gradient(135deg, rgba(11, 120, 160, 0.03) 0%, rgba(21, 122, 74, 0.03) 100%);
+  background: linear-gradient(135deg, rgba(11, 120, 160, 0.03) 0%, rgba(2, 132, 199, 0.03) 100%);
   opacity: 0;
   transition: opacity 0.4s ease;
 }
@@ -803,7 +938,7 @@ html {
   width: 72px; 
   height: 72px; 
   border-radius: 20px; 
-  background: linear-gradient(135deg, rgba(11, 120, 160, 0.1) 0%, rgba(21, 122, 74, 0.1) 100%);
+  background: linear-gradient(135deg, rgba(11, 120, 160, 0.1) 0%, rgba(2, 132, 199, 0.1) 100%);
   display: flex; 
   align-items: center; 
   justify-content: center; 
@@ -818,7 +953,7 @@ html {
 
 .stat-card:hover .stat-icon {
   transform: scale(1.1) rotate(5deg);
-  background: linear-gradient(135deg, var(--primary-blue) 0%, var(--secondary-green) 100%);
+  background: linear-gradient(135deg, var(--primary-blue) 0%, var(--secondary-blue) 100%);
   color: white;
   box-shadow: var(--shadow-lg);
 }
@@ -830,7 +965,7 @@ html {
   line-height: 1.1; 
   margin-bottom: 6px;
   letter-spacing: -1px;
-  background: linear-gradient(135deg, var(--primary-blue) 0%, var(--secondary-green) 100%);
+  background: linear-gradient(135deg, var(--primary-blue) 0%, var(--secondary-blue) 100%);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
@@ -874,6 +1009,38 @@ html {
   flex:1.5 1 360px;
   min-width:280px;
   margin:0;
+}
+
+.overview-chart-full {
+  width:100%;
+  background:#ffffff;
+  border-radius:20px;
+  padding:24px;
+  box-shadow:0 4px 20px rgba(11,120,160,0.08);
+  border:1px solid rgba(11,120,160,0.06);
+}
+
+.overview-grid-professional {
+  display:grid;
+  grid-template-columns:repeat(3, 1fr);
+  gap:20px;
+  width:100%;
+  align-items:stretch;
+}
+
+@media (max-width: 1200px) {
+  .overview-grid-professional {
+    grid-template-columns:repeat(2, 1fr);
+  }
+}
+
+@media (max-width: 768px) {
+  .overview-grid-professional {
+    grid-template-columns:1fr;
+  }
+  .overview-chart-full {
+    padding:16px;
+  }
 }
 
 .overview-card-stack {
@@ -995,7 +1162,7 @@ features {
   margin: 0 !important;
   padding: 0 !important;
   box-sizing: border-box;
-  background: #f5f8fa;
+  background: #2C5F7C;
   text-align: center;
   color: black;
   border-radius: 0;
@@ -1085,13 +1252,13 @@ features {
 
 /* Fix accidental typo-free duplicate selector corrected below */
  .sector-card .left-icon { width:48px; height:48px; border-radius:12px; display:flex; align-items:center; justify-content:center; background:var(--network-gray-2); color:var(--accent); font-size:18px; margin-right:14px; }
- /* Alternate sector card icon colors: odd = blue, even = green */
+ /* Alternate sector card icon colors: odd = blue, even = blue */
  .sector-row .sector-card:nth-child(odd) .left-icon,
  .sector-row .sector-card:nth-child(odd) .left-icon i { color: var(--accent); }
  .sector-row .sector-card:nth-child(even) .left-icon,
  .sector-row .sector-card:nth-child(even) .left-icon i { color: var(--accent-2); }
 
-/* Alternate icon colors specifically for overview cardboxes: odd = blue, even = green */
+ /* Alternate icon colors specifically for overview cardboxes: odd = blue, even = blue */
 #overview .animated-infobox:nth-child(odd) .infobox-icon,
 #overview .animated-infobox:nth-of-type(odd) .infobox-icon,
 #overview .animated-infobox:nth-child(odd) .infobox-icon i,
@@ -1104,11 +1271,11 @@ features {
 .sector-card .card-head { display:flex; align-items:center; gap:12px; }
 .sector-card h4 { margin:0; font-size:20px; color:#0D1B2A; }
 .sector-badge { background:#00a6c4; color:#fff; padding:6px 10px; border-radius:14px; font-size:12px; font-weight:700; margin-left:8px; }
-.sector-change { position:absolute; right:18px; top:18px; color:#157A4A; font-weight:700; }
+.sector-change { position:absolute; right:18px; top:18px; color:#0284c7; font-weight:700; }
 .perf-line { margin-top:12px; display:flex; align-items:center; gap:12px; }
 .perf-line .score { font-weight:700; color:#0D1B2A; }
 .perf-bar { background:#e6eef0; height:10px; border-radius:10px; overflow:hidden; flex:1; }
-.perf-bar .fill { height:100%; background: linear-gradient(90deg,#0B78A0,#157A4A); border-radius:10px; width:0%; }
+.perf-bar .fill { height:100%; background: linear-gradient(90deg,#0B78A0,#0284c7); border-radius:10px; width:0%; }
 .sector-desc { margin-top:12px; color:#4a5b64; font-size:14px; }
 
 /* Infobox icon and size tweaks */
@@ -1162,11 +1329,11 @@ features {
 .predict-body .current, .predict-body .predicted { flex:1; }
 .predict-body .current .val, .predict-body .predicted .val { font-size:22px; font-weight:800; color:var(--accent); }
 .predict-growth { margin-top:12px; font-weight:800; display:flex; align-items:center; gap:8px; }
-.predict-growth.up { color: #157A4A; }
+.predict-growth.up { color: #0284c7; }
 .predict-growth.down { color: #d9534f; }
 .predict-desc { margin-top:10px; color:#556; font-size:13px; }
 .predict-bar { height:10px; background:#e9eef0; border-radius:12px; overflow:hidden; margin-top:10px; }
-.predict-bar .predict-fill { height:100%; width:0%; background: linear-gradient(90deg,#0B78A0,#157A4A); transition: width 900ms cubic-bezier(.2,.9,.2,1); }
+.predict-bar .predict-fill { height:100%; width:0%; background: linear-gradient(90deg,#0B78A0,#0284c7); transition: width 900ms cubic-bezier(.2,.9,.2,1); }
 
 /* Sector Dashboards (cards grid matching provided image) */
 .sector-dashboards {
@@ -1182,13 +1349,13 @@ features {
 /* New grid layout for sector cards to ensure consistent ordering and spacing */
 .sd-grid { display:grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap:32px; align-items:stretch; width:100%; }
 .sd-row { display:flex; gap:24px; flex-wrap:wrap; align-items:stretch; justify-content:space-between; }
-.sd-card { background: #e6f7ee; /* light green card body */ border-radius:14px; padding:30px; box-shadow: 0 16px 54px rgba(0,0,0,0.08); border:1px solid rgba(0,0,0,0.06); flex: none; width:100%; min-height:420px; position:relative; transition: transform 220ms ease, box-shadow 220ms ease; cursor:pointer; color:#0D1B2A; }
+.sd-card { background: #e0f2fe; /* light blue card body */ border-radius:14px; padding:30px; box-shadow: 0 16px 54px rgba(0,0,0,0.08); border:1px solid rgba(0,0,0,0.06); flex: none; width:100%; min-height:420px; position:relative; transition: transform 220ms ease, box-shadow 220ms ease; cursor:pointer; color:#0D1B2A; }
 .sd-card:hover { transform: translateY(-8px); box-shadow: 0 22px 56px rgba(11,120,160,0.10); }
 .sd-top { display:flex; align-items:center; gap:12px; }
 .sd-top .left-icon { width:48px; height:48px; border-radius:10px; display:flex; align-items:center; justify-content:center; background:var(--network-gray-2); color:var(--accent); font-size:20px; }
 .sd-title-inline { font-size:20px; font-weight:800; }
 .sd-desc { color:#556; font-size:13px; margin-top:8px; }
-.sd-kpi { margin-top:18px; background:#d6f0d9; /* pale green for KPI strip */ border-radius:12px; padding:20px; display:flex; align-items:center; justify-content:space-between; }
+.sd-kpi { margin-top:18px; background:#bfdbfe; /* pale blue for KPI strip */ border-radius:12px; padding:20px; display:flex; align-items:center; justify-content:space-between; }
 .sd-kpi .kpi-label { color:#556; font-size:14px; }
 .sd-kpi .kpi-val { font-size:34px; font-weight:900; color:var(--accent); }
 .sd-footer { margin-top:16px; }
@@ -1198,6 +1365,9 @@ features {
 @media (max-width: 1100px) {
   .sector-section { padding: 24px clamp(16px, 4vw, 32px); }
   .sector-row { flex-direction: column; }
+  .high-perf-donut-container { flex-direction: column; }
+  .donut-chart-wrapper { max-width: 100% !important; }
+  .stats-interpretations { max-width: 100% !important; }
 }    
 .footer {
   width: 100% !important;
@@ -1251,7 +1421,7 @@ features {
 
 /* Login Button in Navbar */
 .navlinks .login-btn {
-  background: linear-gradient(135deg, #0B78A0 0%, #157A4A 100%);
+  background: linear-gradient(135deg, #0B78A0 0%, #0284c7 100%);
   color: white !important;
   padding: 10px 24px;
   border-radius: 12px;
@@ -1264,6 +1434,108 @@ features {
   transform: translateY(-2px);
   box-shadow: 0 6px 20px rgba(11,120,160,0.35);
 }
+
+/* ------------------------------------------------------------
+   Scroll reveal: slick fade-in on section enter
+   ------------------------------------------------------------ */
+html.js .ndip-reveal {
+  opacity: 0;
+  transform: translateY(18px);
+  transition: opacity 800ms ease, transform 800ms cubic-bezier(.2,.8,.2,1);
+  will-change: opacity, transform;
+}
+html.js .ndip-reveal.is-visible {
+  opacity: 1;
+  transform: none;
+}
+@media (prefers-reduced-motion: reduce) {
+  html.js .ndip-reveal { opacity: 1; transform: none; transition: none; }
+}
+
+/* ------------------------------------------------------------
+   Quick Stats band (between Hero and Overview)
+   ------------------------------------------------------------ */
+.quick-stats {
+  position: relative;
+  z-index: 20;
+  margin-top: -76px;
+  padding: 0 20px 118px;
+}
+.quick-stats .quick-stats-inner{
+  max-width: 1200px;
+  margin: 0 auto;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 22px;
+}
+.qs-card{
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 26px 24px;
+  border-radius: 20px;
+  background: rgba(255,255,255,0.92);
+  backdrop-filter: blur(18px) saturate(180%);
+  -webkit-backdrop-filter: blur(18px) saturate(180%);
+  border: 1px solid rgba(11,120,160,0.12);
+  /* softer base shadow + subtle bottom-edge glow (replaces top accent line) */
+  box-shadow:
+    0 18px 55px rgba(11,120,160,0.10),
+    inset 0 -12px 26px rgba(2,132,199,0.10);
+  transition: transform .25s ease, box-shadow .25s ease, border-color .25s ease;
+  position: relative;
+  overflow: hidden;
+}
+.qs-card:hover{
+  transform: translateY(-6px);
+  border-color: rgba(11,120,160,0.22);
+  box-shadow:
+    0 26px 70px rgba(11,120,160,0.16),
+    inset 0 -14px 30px rgba(2,132,199,0.14);
+}
+.qs-icon{
+  width: 62px;
+  height: 62px;
+  border-radius: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(135deg, rgba(11,120,160,0.14), rgba(2,132,199,0.12));
+  color: #0B78A0;
+  font-size: 24px;
+  flex: 0 0 auto;
+}
+.qs-meta{ display:flex; flex-direction:column; gap:2px; min-width:0; }
+.qs-label{
+  font-size: 13px;
+  font-weight: 700;
+  color: #334155;
+  letter-spacing: .3px;
+  text-transform: uppercase;
+}
+.qs-value{
+  font-size: 38px;
+  font-weight: 900;
+  letter-spacing: -1px;
+  color: #0f172a;
+  line-height: 1.05;
+}
+.qs-sub{
+  font-size: 14px;
+  color: #64748b;
+  line-height: 1.35;
+}
+.qs-number{
+  background: linear-gradient(135deg, #0B78A0 0%, #0284c7 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+@media (max-width: 900px) {
+  .quick-stats { margin-top: -56px; padding-bottom: 58px; }
+  .quick-stats .quick-stats-inner{ grid-template-columns: 1fr; }
+  .qs-value{ font-size: 30px; }
+}
 "
 
 ui <- fluidPage(
@@ -1272,6 +1544,8 @@ ui <- fluidPage(
   tags$head(
     # Viewport meta tag for proper mobile responsiveness
     tags$meta(name = "viewport", content = "width=device-width, initial-scale=1.0"),
+    # Mark JS-enabled early (prevents scroll-reveal flicker)
+    tags$script(HTML("document.documentElement.classList.add('js');")),
     tags$style(HTML(custom_css)),
     # Font Awesome CDN for icons (solid)
     tags$link(rel = "stylesheet", href = "   https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css"),
@@ -1289,25 +1563,8 @@ ui <- fluidPage(
     ')),
     tags$script(HTML(
       "document.addEventListener('DOMContentLoaded', function() {
-         // Smooth scrolling for anchor links
-         try {
-           const links = document.querySelectorAll('.topnav .navlinks a');
-           if (links && links.length) {
-             links.forEach(function(a){
-               a.addEventListener('click', function(e){
-                 e.preventDefault();
-                 const id = this.getAttribute('href');
-                 if (!id) return;
-                 const el = document.querySelector(id);
-                 if (el) {
-                   el.scrollIntoView({behavior:'smooth', block:'start'});
-                 }
-               });
-             });
-           }
-         } catch (err) {
-           console.warn('Anchor smooth scroll setup failed', err);
-         }
+         // Navbar smooth scrolling is handled by the dedicated navbar script below.
+         // We intentionally do not attach extra click handlers here to avoid ID collisions.
 
          // IntersectionObserver to add 'in-view' class for animations
          try {
@@ -1485,7 +1742,6 @@ ui <- fluidPage(
           tags$li(HTML('<a href="#overview" class="side-link"><span class="side-icon"><i class="fas fa-chart-pie"></i></span><span class="side-text">Overview</span><span class="side-pill"></span></a>')),
           tags$li(HTML('<a href="#visitor_stats" class="side-link"><span class="side-icon"><i class="fas fa-users"></i></span><span class="side-text">Visitor Statistics</span><span class="side-pill"></span></a>')),
           tags$li(HTML('<a href="#tourism_revenue" class="side-link"><span class="side-icon"><i class="fas fa-dollar-sign"></i></span><span class="side-text">Tourism Revenue</span><span class="side-pill"></span></a>')),
-          tags$li(HTML('<a href="#predict" class="side-link"><span class="side-icon"><i class="fas fa-brain"></i></span><span class="side-text">Predictive Analysis</span><span class="side-pill"></span></a>'))
         )
       ),
       tags$div(style='margin-top:auto; font-size:13px; opacity:0.95; color:#fff;', HTML('<a href="#" id="close-tourism-left" style="color:#fff; text-decoration:none; font-weight:800;">Close</a>'))
@@ -1522,7 +1778,6 @@ ui <- fluidPage(
           tags$li(HTML('<a href="#overview" class="side-link"><span class="side-icon"><i class="fas fa-chart-pie"></i></span><span class="side-text">Overview</span><span class="side-pill"></span></a>')),
           tags$li(HTML('<a href="#enrollment_metrics" class="side-link"><span class="side-icon"><i class="fas fa-user-graduate"></i></span><span class="side-text">Enrollment Metrics</span><span class="side-pill"></span></a>')),
           tags$li(HTML('<a href="#academic_performance" class="side-link"><span class="side-icon"><i class="fas fa-award"></i></span><span class="side-text">Academic Performance</span><span class="side-pill"></span></a>')),
-          tags$li(HTML('<a href="#predict" class="side-link"><span class="side-icon"><i class="fas fa-brain"></i></span><span class="side-text">Predictive Analysis</span><span class="side-pill"></span></a>'))
         )
       ),
       tags$div(style='margin-top:auto; font-size:13px; opacity:0.95; color:#fff;', HTML('<a href="#" id="close-education-left" style="color:#fff; text-decoration:none; font-weight:800;">Close</a>'))
@@ -1567,7 +1822,8 @@ ui <- fluidPage(
         tags$a(href='#home', class='nav-link', 'Home'),
         tags$a(href='#overview', class='nav-link', 'Overview'),
         tags$a(href='#sectors', class='nav-link', 'Sectors'),
-        tags$a(href='#guide', class='nav-link', 'User Guide'),
+        tags$a(href='#userguide', class='nav-link', 'User Guide'),
+        tags$a(href='#about', class='nav-link', 'About Us'),
         tags$a(
           href='#login', 
           class='login-btn nav-link', 
@@ -1578,209 +1834,362 @@ ui <- fluidPage(
     )
   ),
   
-  # Professional Navbar JavaScript with Smooth Scrolling
+  # Professional one-page Navbar JavaScript - Senior R Shiny Backend Engineer Implementation
   tags$script(HTML("
-    (function() {
+    (function(){
       'use strict';
       
-      // Get navbar height for offset calculation
-      function getNavbarHeight() {
-        var topnav = document.querySelector('.topnav');
-        return topnav ? topnav.offsetHeight : 80;
-      }
+      // ========================================================================
+      // NDIP Navbar Navigation System
+      // ========================================================================
+      // Architecture: Single delegated event handler with robust section targeting
+      // Purpose: Smooth scroll navigation for one-page Shiny app without UI re-rendering
+      // ========================================================================
       
-      // Toggle mobile menu
-      function toggleMobileMenu() {
-        var navlinks = document.getElementById('navlinks');
-        var hamburger = document.getElementById('hamburger-btn');
+      var NDIPNav = {
+        // Configuration
+        MAIN_SECTIONS: { home: true, overview: true, sectors: true, userguide: true, about: true },
+        DASHBOARDS: ['standalone-economic', 'standalone-health', 'standalone-demographics',
+                     'standalone-tourism', 'standalone-governance', 'standalone-education',
+                     'standalone-login', 'admin-dashboard', 'reviewer-dashboard', 'institution-dashboard'],
+        initialized: false,
         
-        if (navlinks && hamburger) {
-          navlinks.classList.toggle('active');
-          hamburger.classList.toggle('active');
-        }
-      }
-      
-      // Close mobile menu
-      function closeMobileMenu() {
-        var navlinks = document.getElementById('navlinks');
-        var hamburger = document.getElementById('hamburger-btn');
+        // Initialize the navigation system
+        init: function(){
+          if(this.initialized) return;
+          this.initialized = true;
+          
+          // Attach click handler with multiple strategies for reliability
+          this.attachClickHandlers();
+          
+          // Handle browser navigation (back/forward buttons)
+          this.setupBrowserNavigation();
+          
+          // Handle initial hash if present
+          this.handleInitialHash();
+          
+          // Expose API for server-side navigation
+          this.exposeAPI();
+        },
         
-        if (navlinks && hamburger) {
-          navlinks.classList.remove('active');
-          hamburger.classList.remove('active');
-        }
-      }
-      
-      // Professional smooth scroll function with offset for navbar
-      function smoothScrollToSection(hash) {
-        if (!hash) return false;
+        // Get navbar height for scroll offset calculation
+        getNavbarHeight: function(){
+          var topnav = document.querySelector('.topnav');
+          return topnav ? topnav.offsetHeight : 80;
+        },
         
-        var targetId = hash.replace('#', '');
-        if (!targetId) return false;
+        // Find target section element (prioritizes data-ndip-section attribute)
+        getSectionElement: function(id){
+          try {
+            // Primary: Use data-ndip-section attribute for guaranteed targeting
+            var primary = document.querySelector('[data-ndip-section=\"true\"]#' + id);
+            if(primary) return primary;
+            
+            // Fallback: Direct ID lookup (but exclude dashboard internals)
+            var fallback = document.getElementById(id);
+            if(fallback && !this.isInsideDashboard(fallback)) return fallback;
+            
+            return null;
+          } catch(e){
+            console.error('[NDIP Nav] Error finding section:', id, e);
+            return null;
+          }
+        },
         
-        var targetElement = document.getElementById(targetId);
-        if (!targetElement) {
-          console.warn('Target element not found:', targetId);
+        // Check if element is inside a dashboard container
+        isInsideDashboard: function(node){
+          if(!node || !node.closest) return false;
+          try {
+            for(var i = 0; i < this.DASHBOARDS.length; i++){
+              var dash = document.getElementById(this.DASHBOARDS[i]);
+              if(dash && dash.contains(node)) return true;
+            }
+          } catch(e){}
           return false;
-        }
+        },
         
-        // Close any open dashboards first
-        var dashboards = ['standalone-economic', 'standalone-health', 'standalone-demographics', 
-                         'standalone-tourism', 'standalone-governance', 'standalone-education',
-                         'standalone-login', 'admin-dashboard', 'reviewer-dashboard', 'institution-dashboard'];
-        dashboards.forEach(function(id) {
-          var el = document.getElementById(id);
-          if (el) el.style.display = 'none';
-        });
-        
-        // Reset body overflow
-        document.body.style.overflow = 'auto';
-        
-        // Clear dashboard hash to show main content
-        if (location.hash && (location.hash.startsWith('#page=') || 
-            location.hash.startsWith('#admin') || 
-            location.hash.startsWith('#reviewer') || 
-            location.hash.startsWith('#institution') || 
-            location.hash.startsWith('#login'))) {
-          history.replaceState(null, null, ' ');
-        }
+        // Ensure main page is visible (hide dashboards)
+        ensureMainPageVisible: function(){
+          for(var i = 0; i < this.DASHBOARDS.length; i++){
+            var el = document.getElementById(this.DASHBOARDS[i]);
+            if(el) el.style.display = 'none';
+          }
+          try {
+            document.body.style.overflow = 'auto';
+            var pageContent = document.getElementById('page-content');
+            if(pageContent) pageContent.style.display = 'flex';
+          } catch(e){}
+        },
         
         // Close mobile menu
-        closeMobileMenu();
+        closeMobileMenu: function(){
+          try {
+            var navlinks = document.getElementById('navlinks');
+            var hamburger = document.getElementById('hamburger-btn');
+            if(navlinks) navlinks.classList.remove('active');
+            if(hamburger) hamburger.classList.remove('active');
+          } catch(e){}
+        },
         
-        // Wait for any transitions to complete
-        setTimeout(function() {
-          var pageContent = document.getElementById('page-content');
-          if (pageContent) {
-            pageContent.style.display = 'flex';
+        // Smooth scroll to target section
+        scrollToSection: function(id, options){
+          options = options || {};
+          
+          var el = this.getSectionElement(id);
+          if(!el){
+            console.warn('[NDIP Nav] Section not found:', id);
+            return false;
           }
           
-          // Calculate offset for fixed navbar
-          var navbarHeight = getNavbarHeight();
-          var elementPosition = targetElement.getBoundingClientRect().top;
-          var offsetPosition = elementPosition + window.pageYOffset - navbarHeight - 20;
+          // Prepare page state
+          this.ensureMainPageVisible();
+          this.closeMobileMenu();
           
-          // Smooth scroll with offset
-          window.scrollTo({
-            top: offsetPosition,
-            behavior: 'smooth'
+          // Calculate scroll position with navbar offset
+          var scrollToPosition = function(){
+            try {
+              var navbarHeight = NDIPNav.getNavbarHeight();
+              var offset = navbarHeight + 20;
+              
+              // Get current scroll position
+              var currentScroll = window.pageYOffset || 
+                                  document.documentElement.scrollTop || 
+                                  document.body.scrollTop || 0;
+              
+              // Get target element position
+              var rect = el.getBoundingClientRect();
+              var targetTop = rect.top + currentScroll - offset;
+              
+              // Perform smooth scroll
+              window.scrollTo({
+                top: Math.max(0, targetTop),
+                behavior: 'smooth'
+              });
+              
+              // Update URL if requested
+              if(options.updateUrl !== false){
+                if(history && history.pushState){
+                  history.pushState({ ndipSection: id }, '', '#' + id);
+                } else {
+                  location.hash = '#' + id;
+                }
+              }
+              
+              // Update active nav link
+              NDIPNav.setActiveNavLink('#' + id);
+              
+              return true;
+            } catch(err){
+              console.error('[NDIP Nav] Scroll execution error:', err);
+              // Ultimate fallback
+              try {
+                el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                setTimeout(function(){
+                  window.scrollBy(0, -NDIPNav.getNavbarHeight() - 20);
+                }, 300);
+              } catch(e2){
+                console.error('[NDIP Nav] Fallback scroll failed:', e2);
+              }
+              return false;
+            }
+          };
+          
+          // Use double RAF for reliable timing after DOM updates
+          requestAnimationFrame(function(){
+            requestAnimationFrame(scrollToPosition);
           });
           
-          // Update URL hash without triggering scroll
-          if (history.pushState) {
-            history.pushState(null, null, hash);
-          } else {
-            location.hash = hash;
-          }
-          
-          // Add active class to clicked link
-          var navLinks = document.querySelectorAll('.navlinks a.nav-link');
-          navLinks.forEach(function(link) {
-            link.classList.remove('active');
-            if (link.getAttribute('href') === hash) {
-              link.classList.add('active');
-              setTimeout(function() {
+          return true;
+        },
+        
+        // Set active state on navbar link
+        setActiveNavLink: function(hash){
+          try {
+            var links = document.querySelectorAll('.navlinks a.nav-link');
+            for(var i = 0; i < links.length; i++){
+              var link = links[i];
+              if(link.getAttribute('href') === hash){
+                link.classList.add('active');
+                setTimeout(function(){ link.classList.remove('active'); }, 2000);
+              } else {
                 link.classList.remove('active');
-              }, 2000);
+              }
             }
-          });
-        }, 150);
+          } catch(e){}
+        },
         
-        return true;
-      }
-      
-      // Initialize navigation when DOM is ready
-      function initNavigation() {
-        // Handle navbar link clicks
-        var navLinks = document.querySelectorAll('.navlinks a.nav-link[href^=\"#\"]');
-        navLinks.forEach(function(link) {
-          link.addEventListener('click', function(e) {
-            var href = this.getAttribute('href');
-            if (href && href.startsWith('#') && 
-                !href.startsWith('#page=') && 
-                !href.startsWith('#admin') && 
-                !href.startsWith('#reviewer') && 
-                !href.startsWith('#institution') && 
-                !href.startsWith('#login')) {
-              e.preventDefault();
-              e.stopPropagation();
-              smoothScrollToSection(href);
+        // Find closest anchor with hash href
+        findHashLink: function(node){
+          var n = node;
+          var maxDepth = 10;
+          var depth = 0;
+          
+          while(n && n !== document && n !== document.documentElement && depth < maxDepth){
+            if(n.tagName && String(n.tagName).toLowerCase() === 'a'){
+              var href = n.getAttribute && n.getAttribute('href');
+              if(href && href.charAt && href.charAt(0) === '#'){
+                return n;
+              }
             }
-          });
-        });
-        
-        // Handle footer links
-        var footerLinks = document.querySelectorAll('div[style*=\"width:100vw\"] a[href^=\"#\"]');
-        footerLinks.forEach(function(link) {
-          link.addEventListener('click', function(e) {
-            var href = this.getAttribute('href');
-            if (href && href.startsWith('#') && 
-                !href.startsWith('#page=') && 
-                !href.startsWith('#admin') && 
-                !href.startsWith('#reviewer') && 
-                !href.startsWith('#institution') && 
-                !href.startsWith('#login')) {
-              e.preventDefault();
-              e.stopPropagation();
-              smoothScrollToSection(href);
-            }
-          });
-        });
-        
-        // Handle hash changes (browser back/forward)
-        window.addEventListener('hashchange', function() {
-          var hash = location.hash;
-          if (hash && 
-              !hash.startsWith('#page=') && 
-              !hash.startsWith('#admin') && 
-              !hash.startsWith('#reviewer') && 
-              !hash.startsWith('#institution') && 
-              !hash.startsWith('#login')) {
-            setTimeout(function() {
-              smoothScrollToSection(hash);
-            }, 100);
+            n = n.parentNode;
+            depth++;
           }
-        });
+          return null;
+        },
+        
+        // Attach click handlers using multiple strategies for maximum reliability
+        attachClickHandlers: function(){
+          var self = this;
+          
+          // Strategy 1: Delegated handler on document (capture phase for early interception)
+          document.addEventListener('click', function(e){
+            self.handleNavClick(e);
+          }, true);
+          
+          // Strategy 2: Direct handlers on navbar links (backup)
+          setTimeout(function(){
+            self.attachDirectHandlers();
+          }, 100);
+          
+          // Strategy 3: Re-attach after Shiny renders (if DOM changes)
+          if(window.Shiny && window.Shiny.addCustomMessageHandler){
+            window.Shiny.addCustomMessageHandler('ndipNavReinit', function(){
+              setTimeout(function(){ self.attachDirectHandlers(); }, 50);
+            });
+          }
+        },
+        
+        // Attach direct handlers to navbar links
+        attachDirectHandlers: function(){
+          try {
+            var links = document.querySelectorAll('.navlinks a.nav-link[href^=\"#\"]');
+            for(var i = 0; i < links.length; i++){
+              var link = links[i];
+              var href = link.getAttribute('href');
+              if(!href || href === '#') continue;
+              
+              var id = href.slice(1);
+              if(!this.MAIN_SECTIONS[id]) continue;
+              
+              // Remove existing handlers and attach new one
+              var newLink = link.cloneNode(true);
+              link.parentNode.replaceChild(newLink, link);
+              
+              newLink.addEventListener('click', function(e, sectionId){
+                return function(evt){
+                  evt.preventDefault();
+                  evt.stopPropagation();
+                  NDIPNav.scrollToSection(sectionId, { updateUrl: true });
+                };
+              }(null, id));
+            }
+          } catch(e){
+            console.warn('[NDIP Nav] Direct handler attachment failed:', e);
+          }
+        },
+        
+        // Handle click events on navigation links
+        handleNavClick: function(e){
+          try {
+            // Find the clicked link
+            var link = this.findHashLink(e.target);
+            if(!link) return;
+            
+            // Skip if inside dashboard
+            if(this.isInsideDashboard(link)) return;
+            
+            // Get href
+            var href = link.getAttribute('href') || '';
+            if(!href || href === '#') return;
+            
+            // Skip non-main-section routes
+            if(href === '#login' || href.startsWith('#page=') ||
+               href.startsWith('#admin') || href.startsWith('#reviewer') || 
+               href.startsWith('#institution')){
+              return;
+            }
+            
+            // Must be a hash link
+            if(!href.startsWith('#')) return;
+            
+            // Extract section ID
+            var id = href.slice(1);
+            if(!this.MAIN_SECTIONS[id]) return;
+            
+            // Prevent default and handle scroll
+            e.preventDefault();
+            e.stopPropagation();
+            this.scrollToSection(id, { updateUrl: true });
+            
+          } catch(err){
+            console.error('[NDIP Nav] Click handler error:', err);
+          }
+        },
+        
+        // Setup browser navigation (back/forward buttons)
+        setupBrowserNavigation: function(){
+          var self = this;
+          window.addEventListener('popstate', function(){
+            self.handleInitialHash();
+          });
+        },
         
         // Handle initial hash on page load
-        if (location.hash && 
-            !location.hash.startsWith('#page=') && 
-            !location.hash.startsWith('#admin') && 
-            !location.hash.startsWith('#reviewer') && 
-            !location.hash.startsWith('#institution') && 
-            !location.hash.startsWith('#login')) {
-          setTimeout(function() {
-            smoothScrollToSection(location.hash);
-          }, 500);
-        }
-      }
-      
-      // Close mobile menu when clicking outside
-      document.addEventListener('click', function(event) {
-        var navlinks = document.getElementById('navlinks');
-        var hamburger = document.getElementById('hamburger-btn');
-        var topnav = document.querySelector('.topnav');
-        
-        if (navlinks && hamburger && topnav) {
-          if (!topnav.contains(event.target) && navlinks.classList.contains('active')) {
-            closeMobileMenu();
+        handleInitialHash: function(){
+          var hash = (location.hash || '').replace('#', '');
+          if(this.MAIN_SECTIONS[hash]){
+            setTimeout(function(){
+              NDIPNav.scrollToSection(hash, { updateUrl: false });
+            }, 100);
           }
+        },
+        
+        // Expose API for server-side navigation
+        exposeAPI: function(){
+          var self = this;
+          window.NDIPNav = {
+            scrollTo: function(id){
+              if(self.MAIN_SECTIONS[id]){
+                return self.scrollToSection(id, { updateUrl: true });
+              }
+              return false;
+            },
+            toggleMobileMenu: function(){
+              try {
+                var navlinks = document.getElementById('navlinks');
+                var hamburger = document.getElementById('hamburger-btn');
+                if(navlinks && hamburger){
+                  navlinks.classList.toggle('active');
+                  hamburger.classList.toggle('active');
+                }
+              } catch(e){}
+            }
+          };
+          // Legacy API
+          window.NDIPScrollTo = window.NDIPNav.scrollTo;
+          window.toggleMobileMenu = window.NDIPNav.toggleMobileMenu;
         }
-      });
-      
-      // Make functions globally available
-      window.toggleMobileMenu = toggleMobileMenu;
-      window.closeMobileMenu = closeMobileMenu;
+      };
       
       // Initialize when DOM is ready
-      if (document.readyState === 'loading') {
-        document.addEventListener('DOMContentLoaded', initNavigation);
-      } else {
-        initNavigation();
+      function initNavbar(){
+        if(document.readyState === 'loading'){
+          document.addEventListener('DOMContentLoaded', function(){
+            NDIPNav.init();
+          });
+        } else {
+          NDIPNav.init();
+        }
+        
+        // Also try after a delay to catch late-rendered elements
+        setTimeout(function(){
+          if(!NDIPNav.initialized) NDIPNav.init();
+        }, 200);
       }
       
-      // Also initialize after a short delay to ensure all elements are rendered
-      setTimeout(initNavigation, 300);
+      // Start initialization
+      initNavbar();
+      
     })();
   ")),
   
@@ -1895,20 +2304,54 @@ ui <- fluidPage(
     Shiny.addCustomMessageHandler('redirectToDashboard', function(dashboard) {
       console.log('Redirecting to:', dashboard);
       
-      // Hide login page
-      var loginPage = document.getElementById('standalone-login');
-      if (loginPage) {
-        loginPage.style.display = 'none';
-      }
-      
       // Redirect based on dashboard type
       if (dashboard === 'admin') {
+        // Hide login page
+        var loginPage = document.getElementById('standalone-login');
+        if (loginPage) {
+          loginPage.style.display = 'none';
+        }
         window.location.hash = '#admin-dashboard';
       } else if (dashboard === 'reviewer') {
+        // Hide login page
+        var loginPage = document.getElementById('standalone-login');
+        if (loginPage) {
+          loginPage.style.display = 'none';
+        }
         window.location.hash = '#reviewer-dashboard';
       } else if (dashboard === 'institution') {
+        // Hide login page
+        var loginPage = document.getElementById('standalone-login');
+        if (loginPage) {
+          loginPage.style.display = 'none';
+        }
         window.location.hash = '#institution-dashboard';
+      } else if (dashboard === 'login') {
+        // Show login page and hide all dashboards
+        var loginPage = document.getElementById('standalone-login');
+        if (loginPage) {
+          loginPage.style.display = 'block';
+        }
+        // Hide all dashboards
+        var dashboards = ['admin-dashboard', 'reviewer-dashboard', 'institution-dashboard'];
+        dashboards.forEach(function(id) {
+          var el = document.getElementById(id);
+          if (el) {
+            el.style.display = 'none';
+          }
+        });
+        // Show main page content
+        var pageContent = document.getElementById('page-content');
+        if (pageContent) {
+          pageContent.style.display = 'none';
+        }
+        window.location.hash = '#login';
       } else if (dashboard === 'home') {
+        // Hide login page
+        var loginPage = document.getElementById('standalone-login');
+        if (loginPage) {
+          loginPage.style.display = 'none';
+        }
         window.location.hash = '';
       }
       
@@ -1984,277 +2427,139 @@ ui <- fluidPage(
   # reviewer_dashboard_ui("reviewer_dashboard_module"),  # Already initialized on line 1549
   # institution_dashboard_ui("institution_dashboard_module"),  # Already initialized on line 1550
   
-  # MAIN: Home / hero section
+  # MAIN: Home / hero section with video background
   div(
-    id = 'home', class = 'section',
+    id = 'home',
+    class = 'hero-video-wrapper ndip-reveal is-visible',
+    `data-ndip-section` = 'true',
     
+    # Video background
+    tags$video(
+      class = 'hero-video-background',
+      src = 'NDIP vid.mp4',
+      autoplay = NA,
+      loop = NA,
+      muted = NA,
+      playsinline = NA,
+      `data-autoplay` = 'true',
+      `data-loop` = 'true',
+      `data-muted` = 'true'
+    ),
+    
+    # Overlay for better text readability
+    div(class = 'hero-video-overlay'),
+    
+    # Hero content
     div(
-      class = 'hero',
-      
-      # Left side content (replaced per request)
-      div(
-        class = 'hero-left',
-        div(class='badge', 'Real-time Data Platform'),
-        tags$h1(class='hero-title', 'Welcome to Rwanda in numbers'),
-        tags$p(class='hero-sub', 'National Data Integration Platform - Empowering Rwanda through transparent, accessible, and actionable data insights'),
-        div(class='hero-ctas',
-            tags$a(class='btn-primary', href='#overview', HTML('<i class="fas fa-chart-line" style="margin-right:8px;"></i> Explore Data')),
-            tags$a(class='btn-outline', href='#sectors', HTML('<i class="fas fa-database" style="margin-right:8px;"></i> View Sectors'))
-        ),
-        # stats removed from hero-left; moved to cards below hero
-      ),
-      
-      # Right side with sliding images (500x220)
-      div(
-        class = 'hero-right',
-        div(id = 'hero_slider', class = 'image-carousel')
+      class = 'hero-video-content',
+      div(class='badge', 'Real-time Data Platform'),
+      tags$h1(class='hero-title', 'Welcome to Rwanda in numbers'),
+      tags$p(class='hero-sub', 'National Data Intelligence Platform - Empowering Rwanda through transparent, accessible, and actionable data insights'),
+      div(class='hero-ctas',
+          tags$a(class='btn-primary', href='#overview', HTML('<i class="fas fa-chart-line" style="margin-right:8px;"></i> Explore Data')),
+          tags$a(class='btn-outline', href='#sectors', HTML('<i class="fas fa-database" style="margin-right:8px;"></i> View Sectors'))
       )
     ),
     # Menya chatbot JS: open/close and send queries to Shiny
     tags$script(HTML("document.addEventListener(\"DOMContentLoaded\", function(){\n  try{\n    var btn = document.getElementById('menyaBtn');\n    var modal = document.getElementById('menyaModal');\n    var closeBtn = document.getElementById('menyaClose');\n    var send = document.getElementById('menyaSend');\n    var input = document.getElementById('menyaInput');\n    var msgs = document.getElementById('menyaMessages');\n    function openModal(){ if(modal){ modal.style.display = 'flex'; if(input) input.focus(); } }\n    function closeModal(){ if(modal){ modal.style.display = 'none'; } }\n    if(btn) btn.addEventListener('click', openModal);\n    if(closeBtn) closeBtn.addEventListener('click', closeModal);\n    if(send){ send.addEventListener('click', function(){ var q = input && input.value && input.value.trim(); if(!q) return; var el = document.createElement('div'); el.style.margin = '8px 0'; el.innerHTML = \"<div style=\\\"font-weight:700;color:#042A3B;\\\">You</div><div style=\\\"color:#004056;\\\">\" + q + \"</div>\"; if(msgs){ msgs.appendChild(el); msgs.scrollTop = msgs.scrollHeight; } if(window.Shiny && Shiny.setInputValue){ Shiny.setInputValue('menya_query', q, {priority: 'event'}); } if(input) input.value = ''; }); }\n    if(input){ input.addEventListener('keydown', function(e){ if(e.key === 'Enter'){ e.preventDefault(); if(send) send.click(); } }); }\n  }catch(e){ console.warn('menya init failed', e); }\n}));")),
+  ),
 
-    # Home stats cards (moved below hero)
-    div(class='home-stats',
-        div(class='stat-card',
-          div(class='stat-icon', HTML('<i class="fas fa-chart-bar"></i>')),
-          div(
-            div(class='num', HTML('<span class="count" data-target="250" data-decimals="0">0</span><span class="suffix">+</span>')),
-            div(class='label', 'Active Datasets'),
-            div(class='small', 'Live data from government institutions')
-          )
-        ),
-        div(class='stat-card',
-          div(class='stat-icon', HTML('<i class="fas fa-layer-group"></i>')),
-          div(
-            div(class='num', HTML('<span class="count" data-target="6" data-decimals="0">0</span>')),
-            div(class='label', 'Key Sectors'),
-            div(class='small', 'Comprehensive coverage of national development')
-          )
-        ),
-        div(class='stat-card',
-          div(class='stat-icon', HTML('<i class="fas fa-check-circle"></i>')),
-          div(
-            div(class='num', HTML('<span class="count" data-target="98" data-decimals="0">0</span><span class="suffix">%</span>')),
-            div(class='label', 'Data Accuracy'),
-            div(class='small', 'Validated and verified information')
-          )
-        )
-      ),
-
-    # WHAT IS NDIP? Section - Professional explanation
+  # Quick stats band (between Hero and Overview) with count-up
+  div(
+    id = 'highlights',
+    class = 'quick-stats ndip-reveal',
+    `data-countup` = 'true',
     div(
-      class='why-ndip-section',
-      style='margin-top:80px; margin-bottom:60px; padding:60px 0; background:linear-gradient(135deg, #f8fafc 0%, #ffffff 100%); border-radius:24px; position:relative; overflow:hidden;',
-      tags$style(HTML("
-        .why-ndip-section::before {
-          content: '';
-          position: absolute;
-          top: 0;
-          left: 0;
-          right: 0;
-          height: 4px;
-          background: linear-gradient(90deg, #0B78A0 0%, #157A4A 50%, #0B78A0 100%);
-        }
-        .why-ndip-header {
-          text-align: center;
-          margin-bottom: 48px;
-        }
-        .why-ndip-header h2 {
-          font-size: 42px;
-          font-weight: 800;
-          color: #042A3B;
-          margin-bottom: 16px;
-          letter-spacing: -0.5px;
-          background: linear-gradient(135deg, #0B78A0 0%, #157A4A 100%);
-          -webkit-background-clip: text;
-          -webkit-text-fill-color: transparent;
-          background-clip: text;
-        }
-        .why-ndip-header p {
-          font-size: 18px;
-          color: #64748b;
-          max-width: 800px;
-          margin: 0 auto;
-          line-height: 1.7;
-        }
-        .why-ndip-grid {
-          display: grid;
-          grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
-          gap: 32px;
-          max-width: 1200px;
-          margin: 0 auto;
-          padding: 0 24px;
-        }
-        .why-ndip-card {
-          background: #ffffff;
-          border-radius: 20px;
-          padding: 36px;
-          box-shadow: 0 4px 20px rgba(11, 120, 160, 0.08);
-          border: 1px solid rgba(11, 120, 160, 0.1);
-          transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-          position: relative;
-          overflow: hidden;
-        }
-        .why-ndip-card::before {
-          content: '';
-          position: absolute;
-          top: 0;
-          left: 0;
-          width: 4px;
-          height: 100%;
-          background: linear-gradient(180deg, #0B78A0 0%, #157A4A 100%);
-          transform: scaleY(0);
-          transition: transform 0.3s ease;
-        }
-        .why-ndip-card:hover {
-          transform: translateY(-8px);
-          box-shadow: 0 12px 40px rgba(11, 120, 160, 0.15);
-        }
-        .why-ndip-card:hover::before {
-          transform: scaleY(1);
-        }
-        .why-ndip-icon {
-          width: 64px;
-          height: 64px;
-          border-radius: 16px;
-          background: linear-gradient(135deg, rgba(11, 120, 160, 0.1) 0%, rgba(21, 122, 74, 0.1) 100%);
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          margin-bottom: 24px;
-          font-size: 28px;
-          color: #0B78A0;
-        }
-        .why-ndip-card h3 {
-          font-size: 22px;
-          font-weight: 700;
-          color: #042A3B;
-          margin-bottom: 12px;
-          letter-spacing: -0.3px;
-        }
-        .why-ndip-card p {
-          font-size: 15px;
-          color: #64748b;
-          line-height: 1.7;
-          margin: 0;
-        }
-        .why-ndip-stats {
-          display: flex;
-          justify-content: center;
-          gap: 48px;
-          margin-top: 48px;
-          padding: 40px 24px;
-          background: rgba(11, 120, 160, 0.03);
-          border-radius: 16px;
-          max-width: 1000px;
-          margin-left: auto;
-          margin-right: auto;
-        }
-        .why-ndip-stat-item {
-          text-align: center;
-        }
-        .why-ndip-stat-number {
-          font-size: 36px;
-          font-weight: 800;
-          color: #0B78A0;
-          margin-bottom: 8px;
-          letter-spacing: -0.5px;
-        }
-        .why-ndip-stat-label {
-          font-size: 14px;
-          color: #64748b;
-          font-weight: 600;
-          text-transform: uppercase;
-          letter-spacing: 0.5px;
-        }
-        @media (max-width: 768px) {
-          .why-ndip-header h2 {
-            font-size: 32px;
-          }
-          .why-ndip-grid {
-            grid-template-columns: 1fr;
-            gap: 24px;
-            padding: 0 16px;
-          }
-          .why-ndip-stats {
-            flex-direction: column;
-            gap: 32px;
-          }
-        }
-      ")),
+      class = 'quick-stats-inner',
       div(
-        class='why-ndip-header',
-        tags$h2('WHAT IS NDIP?'),
-        tags$p('A centralized data intelligence platform that digitizes, coordinates, and transforms Rwanda\'s complex and big country data into easy-to-understand stories using visualizations from various sectors. Rwanda has positioned itself as Africa\'s leading hub for data-driven innovation, artificial intelligence, and digital transformation. NDIP empowers evidence-based decision-making by providing real-time actionable insights across all sectors.')
-      ),
-      div(
-        class='why-ndip-grid',
+        class = 'qs-card',
+        div(class='qs-icon', HTML('<i class="fas fa-building"></i>')),
         div(
-          class='why-ndip-card',
-          div(class='why-ndip-icon', HTML('<i class="fas fa-network-wired"></i>')),
-          tags$h3('Centralized Intelligence Hub'),
-          tags$p('NDIP serves as Rwanda\'s unified data ecosystem, seamlessly coordinating multiple government institutions and agencies. By consolidating fragmented data sources into a single, accessible platform, we eliminate silos and create a comprehensive view of national development metrics.')
-        ),
-        div(
-          class='why-ndip-card',
-          div(class='why-ndip-icon', HTML('<i class="fas fa-sync-alt"></i>')),
-          tags$h3('Real-Time Data Synchronization'),
-          tags$p('Experience live data updates as they happen. Our digitized infrastructure ensures that every metric, statistic, and indicator reflects the current state of Rwanda\'s progress. No delays, no outdated information—just real-time intelligence at your fingertips.')
-        ),
-        div(
-          class='why-ndip-card',
-          div(class='why-ndip-icon', HTML('<i class="fas fa-chart-line"></i>')),
-          tags$h3('Rwanda in Numbers'),
-          tags$p('Transform complex data into clear, visual narratives. NDIP translates Rwanda\'s development story into comprehensive dashboards, interactive charts, and predictive analytics that make national progress tangible and understandable for policymakers, researchers, and citizens alike.')
-        ),
-        div(
-          class='why-ndip-card',
-          div(class='why-ndip-icon', HTML('<i class="fas fa-building"></i>')),
-          tags$h3('Institutional Coordination'),
-          tags$p('Foster seamless collaboration across ministries, agencies, and institutions. NDIP\'s integrated workflow enables data submission, quality review, and publication processes that ensure accuracy, consistency, and transparency in national reporting.')
-        ),
-        div(
-          class='why-ndip-card',
-          div(class='why-ndip-icon', HTML('<i class="fas fa-brain"></i>')),
-          tags$h3('Predictive Analytics & Forecasting'),
-          tags$p('Go beyond historical data with advanced ARIMA modeling and machine learning algorithms. NDIP provides statistically robust forecasts that help anticipate trends, plan interventions, and optimize resource allocation for Rwanda\'s sustainable development goals.')
-        ),
-        div(
-          class='why-ndip-card',
-          div(class='why-ndip-icon', HTML('<i class="fas fa-shield-check"></i>')),
-          tags$h3('Data Quality & Validation'),
-          tags$p('Every dataset undergoes rigorous quality assurance through our multi-tier review system. Automated validation, expert review, and institutional verification ensure that NDIP maintains the highest standards of data accuracy and reliability.')
+          class='qs-meta',
+          div(class='qs-label', 'Active institutions'),
+          div(class='qs-value', tags$span(class='qs-number', `data-target`='3', `data-suffix`='', `data-duration`='1200', '0')),
+          div(class='qs-sub', 'Connected institutions contributing data')
         )
       ),
       div(
-        class='why-ndip-stats',
+        class = 'qs-card',
+        div(class='qs-icon', HTML('<i class="fas fa-database"></i>')),
         div(
-          class='why-ndip-stat-item',
-          div(class='why-ndip-stat-number', '250+'),
-          div(class='why-ndip-stat-label', 'Active Datasets')
-        ),
+          class='qs-meta',
+          div(class='qs-label', 'Datasets uploaded'),
+          div(class='qs-value', tags$span(class='qs-number', `data-target`='50', `data-suffix`='+', `data-duration`='1400', '0')),
+          div(class='qs-sub', 'Curated datasets across key sectors')
+        )
+      ),
+      div(
+        class = 'qs-card',
+        div(class='qs-icon', HTML('<i class="fas fa-check-circle"></i>')),
         div(
-          class='why-ndip-stat-item',
-          div(class='why-ndip-stat-number', '15+'),
-          div(class='why-ndip-stat-label', 'Institutions')
-        ),
-        div(
-          class='why-ndip-stat-item',
-          div(class='why-ndip-stat-number', '98%'),
-          div(class='why-ndip-stat-label', 'Data Accuracy')
-        ),
-        div(
-          class='why-ndip-stat-item',
-          div(class='why-ndip-stat-number', '24/7'),
-          div(class='why-ndip-stat-label', 'Real-Time Updates')
+          class='qs-meta',
+          div(class='qs-label', 'Data accuracy'),
+          div(class='qs-value', tags$span(class='qs-number', `data-target`='98', `data-suffix`='%', `data-duration`='1400', '0')),
+          div(class='qs-sub', 'Quality assured through multi-step review')
         )
       )
-    ),
+    )
+  ),
 
-    # Overview section
+  # Scroll reveal + count-up animations
+  tags$script(HTML("
+    document.addEventListener('DOMContentLoaded', function(){
+      (function(){
+        function easeOutCubic(t){ return 1 - Math.pow(1 - t, 3); }
+        function animateNumber(el){
+          if(!el || el.dataset.done) return;
+          el.dataset.done = '1';
+          var target = parseFloat(el.getAttribute('data-target') || '0');
+          var suffix = el.getAttribute('data-suffix') || '';
+          var prefix = el.getAttribute('data-prefix') || '';
+          var duration = parseInt(el.getAttribute('data-duration') || '1200', 10);
+          var start = null;
+          function step(ts){
+            if(!start) start = ts;
+            var p = Math.min((ts - start) / duration, 1);
+            var v = Math.round(target * easeOutCubic(p));
+            el.textContent = prefix + v.toLocaleString() + suffix;
+            if(p < 1) requestAnimationFrame(step);
+          }
+          requestAnimationFrame(step);
+        }
+        
+        function reveal(el){
+          el.classList.add('is-visible');
+          if(el.getAttribute('data-countup') === 'true'){
+            el.querySelectorAll('.qs-number[data-target]').forEach(animateNumber);
+          }
+        }
+        
+        var els = Array.prototype.slice.call(document.querySelectorAll('.ndip-reveal'));
+        if(!('IntersectionObserver' in window)){
+          els.forEach(reveal);
+          return;
+        }
+        var io = new IntersectionObserver(function(entries){
+          entries.forEach(function(entry){
+            if(entry.isIntersecting){
+              reveal(entry.target);
+              io.unobserve(entry.target);
+            }
+          });
+        }, { threshold: 0.14 });
+        
+        els.forEach(function(el){
+          if(el.classList.contains('is-visible')) return;
+          io.observe(el);
+        });
+      })();
+    });
+  ")),
+
+  # Overview section
   
   # Overview section
-  div(id='overview', class='section', style='padding-top:24px; padding-bottom:4px; min-height:0;',
+  div(id='overview', class='section ndip-reveal', `data-ndip-section`='true', style='padding-top:92px; padding-bottom:8px; min-height:0;',
       div(class='section-inner',
           div(
             h2(class='fade-in-up', 'Explore the NDIP overview'),
@@ -2262,52 +2567,42 @@ ui <- fluidPage(
                 p("An integrated overview of NDIP connecting data, innovation and insights to drive Rwanda's sustainable development.")
             )
           ),
-          div(style='display: flex; flex-direction: column; gap: 40px; margin-top: 40px;',
-            # Top Row with Bar Chart and First Two Info Boxes
-            div(class='overview-row',
-              # Bar Chart
-              div(class='overview-chart',
-                plotlyOutput('pop_bar', height = '440px')
-              ),
-              # First Column of Info Boxes
-              div(class='overview-card-stack',
-                # GDP Box
-                div(class='animated-infobox interactive-box', onclick = "Shiny.setInputValue('gdp_click', Math.random())", 
-                    style='background:#f5f5f5; border-radius:22px; box-shadow:0 2px 18px rgba(0,0,0,0.12); padding:28px; display:flex; flex-direction:column; align-items:flex-start; justify-content:flex-start; font-size:15px; position:relative; cursor:pointer; transition:all 0.2s ease; width:100%;',
-                  htmlOutput('gdp_box')
-                ),
-                # Literacy Box
-                div(class='animated-infobox interactive-box', onclick = "Shiny.setInputValue('literacy_click', Math.random())",
-                    style='background:#f5f5f5; border-radius:22px; box-shadow:0 2px 18px rgba(0,0,0,0.12); padding:28px; display:flex; flex-direction:column; align-items:flex-start; justify-content:flex-start; font-size:15px; position:relative; cursor:pointer; transition:all 0.2s ease; width:100%;',
-                  htmlOutput('literacy_box')
-                )
-              )
+          div(style='display: flex; flex-direction: column; gap: 24px; margin-top: 40px;',
+            # Population Chart - Full Width Top
+            div(class='overview-chart-full', style='width:100%; margin-bottom:8px;',
+              plotlyOutput('pop_bar', height = '380px')
             ),
-            # Bottom Row of Info Boxes
-            div(class='overview-row overview-grid',
-              # CPI Box
+            # Professional 3-Column Grid Layout for Info Boxes
+            div(class='overview-grid-professional', style='display:grid; grid-template-columns:repeat(3, 1fr); gap:20px; width:100%;',
+              # Row 1: Economic Indicators
+              div(class='animated-infobox interactive-box', onclick = "Shiny.setInputValue('gdp_click', Math.random())", 
+                  style='background:#f5f5f5; border-radius:22px; box-shadow:0 2px 18px rgba(0,0,0,0.12); padding:28px; display:flex; flex-direction:column; align-items:flex-start; justify-content:flex-start; font-size:15px; position:relative; cursor:pointer; transition:all 0.2s ease; width:100%; min-height:200px;',
+                htmlOutput('gdp_box')
+              ),
               div(class='animated-infobox interactive-box', onclick = "Shiny.setInputValue('cpi_click', Math.random())",
-                  style='background:#f5f5f5; border-radius:22px; box-shadow:0 2px 18px rgba(0,0,0,0.12); padding:28px; display:flex; flex-direction:column; align-items:flex-start; justify-content:flex-start; font-size:15px; position:relative; cursor:pointer; transition:all 0.2s ease; width:100%;',
+                  style='background:#f5f5f5; border-radius:22px; box-shadow:0 2px 18px rgba(0,0,0,0.12); padding:28px; display:flex; flex-direction:column; align-items:flex-start; justify-content:flex-start; font-size:15px; position:relative; cursor:pointer; transition:all 0.2s ease; width:100%; min-height:200px;',
                 htmlOutput('cpi_box')
               ),
-              # Electricity Access Box
-              div(class='animated-infobox interactive-box', onclick = "Shiny.setInputValue('electricity_click', Math.random())",
-                  style='background:#f5f5f5; border-radius:22px; box-shadow:0 2px 18px rgba(0,0,0,0.12); padding:28px; display:flex; flex-direction:column; align-items:flex-start; justify-content:flex-start; font-size:15px; position:relative; cursor:pointer; transition:all 0.2s ease; width:100%;',
-                htmlOutput('electricity_box')
-              ),
-              # Life Expectancy Box
-              div(class='animated-infobox interactive-box', onclick = "Shiny.setInputValue('life_exp_click', Math.random())",
-                  style='background:#f5f5f5; border-radius:22px; box-shadow:0 2px 18px rgba(0,0,0,0.12); padding:28px; display:flex; flex-direction:column; align-items:flex-start; justify-content:flex-start; font-size:15px; position:relative; cursor:pointer; transition:all 0.2s ease; width:100%;',
-                htmlOutput('life_exp_box')
-              ),
-              # Poverty Rate Box
               div(class='animated-infobox interactive-box', onclick = "Shiny.setInputValue('poverty_click', Math.random())",
-                  style='background:#f5f5f5; border-radius:22px; box-shadow:0 2px 18px rgba(0,0,0,0.12); padding:28px; display:flex; flex-direction:column; align-items:flex-start; justify-content:flex-start; font-size:15px; position:relative; cursor:pointer; transition:all 0.2s ease; width:100%;',
+                  style='background:#f5f5f5; border-radius:22px; box-shadow:0 2px 18px rgba(0,0,0,0.12); padding:28px; display:flex; flex-direction:column; align-items:flex-start; justify-content:flex-start; font-size:15px; position:relative; cursor:pointer; transition:all 0.2s ease; width:100%; min-height:200px;',
                 htmlOutput('poverty_box')
               ),
-              # Rwanda Geography & Administration Box
+              # Row 2: Social Indicators
+              div(class='animated-infobox interactive-box', onclick = "Shiny.setInputValue('literacy_click', Math.random())",
+                  style='background:#f5f5f5; border-radius:22px; box-shadow:0 2px 18px rgba(0,0,0,0.12); padding:28px; display:flex; flex-direction:column; align-items:flex-start; justify-content:flex-start; font-size:15px; position:relative; cursor:pointer; transition:all 0.2s ease; width:100%; min-height:200px;',
+                htmlOutput('literacy_box')
+              ),
+              div(class='animated-infobox interactive-box', onclick = "Shiny.setInputValue('electricity_click', Math.random())",
+                  style='background:#f5f5f5; border-radius:22px; box-shadow:0 2px 18px rgba(0,0,0,0.12); padding:28px; display:flex; flex-direction:column; align-items:flex-start; justify-content:flex-start; font-size:15px; position:relative; cursor:pointer; transition:all 0.2s ease; width:100%; min-height:200px;',
+                htmlOutput('electricity_box')
+              ),
+              div(class='animated-infobox interactive-box', onclick = "Shiny.setInputValue('life_exp_click', Math.random())",
+                  style='background:#f5f5f5; border-radius:22px; box-shadow:0 2px 18px rgba(0,0,0,0.12); padding:28px; display:flex; flex-direction:column; align-items:flex-start; justify-content:flex-start; font-size:15px; position:relative; cursor:pointer; transition:all 0.2s ease; width:100%; min-height:200px;',
+                htmlOutput('life_exp_box')
+              ),
+              # Row 3: Geography (spans full width for emphasis)
               div(class='animated-infobox interactive-box', onclick = "Shiny.setInputValue('geography_click', Math.random())",
-                  style='background:#f5f5f5; border-radius:22px; box-shadow:0 2px 18px rgba(0,0,0,0.12); padding:28px; display:flex; flex-direction:column; align-items:flex-start; justify-content:flex-start; font-size:15px; position:relative; cursor:pointer; transition:all 0.2s ease; width:100%;',
+                  style='background:#f5f5f5; border-radius:22px; box-shadow:0 2px 18px rgba(0,0,0,0.12); padding:28px; display:flex; flex-direction:column; align-items:flex-start; justify-content:flex-start; font-size:15px; position:relative; cursor:pointer; transition:all 0.2s ease; width:100%; min-height:200px; grid-column:1/-1;',
                 htmlOutput('geography_box')
               )
             )
@@ -2316,146 +2611,158 @@ ui <- fluidPage(
   ,div(class='sector-section', style='margin-top:8px;',
         h3(class='sector-title', 'Sector Performance Analysis'),
         div(class='sector-subtitle', 'Comprehensive analysis of Rwanda\'s six key development sectors'),
-        div(class='high-perf-header', h4(style='color:var(--accent); margin:0;','\u2197 High Performing Sectors')),
-        # Row 1 - High performing
-        div(class='sector-row',
-          div(class='sector-card fade-in-up',
-            div(class='card-head',
-              div(class='left-icon', HTML('<i class="fas fa-building"></i>')),
-              h4('Economic Development', tags$span(class='sector-badge', 'High Performing')),
-              span(class='sector-change', HTML('<i class="fas fa-arrow-up"></i> +8.2%'))
-            ),
-            div(class='perf-line',
-              div(class='perf-bar', tags$div(class='fill', `data-fill`='85%')), 
-              span(class='score', '85%')
-            ),
-            div(class='sector-desc', 'Strong GDP growth and business environment improvements')
+        div(class='high-perf-header', h4(style='color:var(--accent); margin:0 0 24px 0;','\u2197 High Performing Sectors')),
+        # High Performing Sectors - Donut Chart with Statistical Interpretations
+        div(class='high-perf-donut-container', style='display:flex; gap:32px; align-items:flex-start; margin-bottom:32px; flex-wrap:wrap;',
+          # Donut Chart Section
+          div(class='donut-chart-wrapper', style='flex:1; min-width:320px; max-width:480px; background:#ffffff; border-radius:20px; padding:28px; box-shadow: 0 8px 24px rgba(11,120,160,0.10); border:1px solid rgba(11,120,160,0.08);',
+            tags$h4(style='margin:0 0 20px 0; font-size:18px; font-weight:700; color:#0B78A0; text-align:center;', 'Performance Distribution'),
+            echarts4rOutput('high_perf_donut', height = '360px')
           ),
-          div(class='sector-card fade-in-up',
-            div(class='card-head',
-              div(class='left-icon', HTML('<i class="fas fa-shield-alt"></i>')),
-              h4('Governance & Security', tags$span(class='sector-badge', 'High Performing')),
-              span(class='sector-change', HTML('<i class="fas fa-arrow-up"></i> +4.1%'))
+          # Combined Statistical Interpretations Card
+          div(class='stats-interpretations', style='flex:1; min-width:320px; max-width:600px; background:#ffffff; border-radius:20px; padding:32px; box-shadow: 0 8px 24px rgba(11,120,160,0.10); border:1px solid rgba(11,120,160,0.08);',
+            tags$h4(style='margin:0 0 24px 0; font-size:20px; font-weight:700; color:#0B78A0; text-align:center;', 'Statistical Interpretations'),
+            # Governance & Security
+            div(style='padding-bottom:24px; margin-bottom:24px; border-bottom:1px solid rgba(11,120,160,0.12);',
+              div(style='display:flex; align-items:baseline; justify-content:space-between; margin-bottom:12px;',
+                tags$h4(style='margin:0; font-size:18px; font-weight:700; color:#0f172a;', 'Governance & Security'),
+                tags$span(style='font-size:28px; font-weight:900; color:#0B78A0; line-height:1;', '88%')
+              ),
+              tags$p(style='margin:0 0 12px 0; color:#475569; font-size:14px; line-height:1.6;', 
+                'Leading sector with exceptional governance indicators and security stability. This performance reflects strong institutional frameworks, transparent policy implementation, and effective public service delivery mechanisms.'
+              ),
+              div(style='display:flex; gap:20px;',
+                div(style='flex:1;',
+                  tags$div(style='font-size:12px; color:#64748b; margin-bottom:4px;', 'Growth Rate'),
+                  tags$div(style='font-size:15px; font-weight:700; color:#0284c7;', '+4.1%')
+                ),
+                div(style='flex:1;',
+                  tags$div(style='font-size:12px; color:#64748b; margin-bottom:4px;', 'Rank'),
+                  tags$div(style='font-size:15px; font-weight:700; color:#0B78A0;', '#1')
+                )
+              )
             ),
-            div(class='perf-line',
-              div(class='perf-bar', tags$div(class='fill', `data-fill`='88%')), 
-              span(class='score', '88%')
+            # Economic Development
+            div(style='padding-bottom:24px; margin-bottom:24px; border-bottom:1px solid rgba(11,120,160,0.12);',
+              div(style='display:flex; align-items:baseline; justify-content:space-between; margin-bottom:12px;',
+                tags$h4(style='margin:0; font-size:18px; font-weight:700; color:#0f172a;', 'Economic Development'),
+                tags$span(style='font-size:28px; font-weight:900; color:#0284c7; line-height:1;', '85%')
+              ),
+              tags$p(style='margin:0 0 12px 0; color:#475569; font-size:14px; line-height:1.6;', 
+                'Strong economic fundamentals with robust GDP growth and improved business environment. The sector demonstrates consistent expansion driven by diversified economic activities, foreign investment, and strategic policy interventions.'
+              ),
+              div(style='display:flex; gap:20px;',
+                div(style='flex:1;',
+                  tags$div(style='font-size:12px; color:#64748b; margin-bottom:4px;', 'Growth Rate'),
+                  tags$div(style='font-size:15px; font-weight:700; color:#0284c7;', '+8.2%')
+                ),
+                div(style='flex:1;',
+                  tags$div(style='font-size:12px; color:#64748b; margin-bottom:4px;', 'Rank'),
+                  tags$div(style='font-size:15px; font-weight:700; color:#0B78A0;', '#2')
+                )
+              )
             ),
-            div(class='sector-desc', 'Excellent governance indicators and security stability')
-          ),
-          div(class='sector-card fade-in-up',
-            div(class='card-head',
-              div(class='left-icon', HTML('<i class="fas fa-map-marker-alt"></i>')),
-              h4('Tourism', tags$span(class='sector-badge', 'High Performing')),
-              span(class='sector-change', HTML('<i class="fas fa-arrow-up"></i> +15.3%'))
-            ),
-            div(class='perf-line',
-              div(class='perf-bar', tags$div(class='fill', `data-fill`='78%')), 
-              span(class='score', '78%')
-            ),
-            div(class='sector-desc', 'Rapid recovery and growth in tourism sector')
+            # Tourism
+            div(style='padding-bottom:0;',
+              div(style='display:flex; align-items:baseline; justify-content:space-between; margin-bottom:12px;',
+                tags$h4(style='margin:0; font-size:18px; font-weight:700; color:#0f172a;', 'Tourism'),
+                tags$span(style='font-size:28px; font-weight:900; color:#0ea5e9; line-height:1;', '78%')
+              ),
+              tags$p(style='margin:0 0 12px 0; color:#475569; font-size:14px; line-height:1.6;', 
+                'Rapid recovery and sustained growth in tourism sector, driven by strategic marketing, infrastructure development, and Rwanda\'s unique natural and cultural attractions. The sector shows strong resilience and expansion potential.'
+              ),
+              div(style='display:flex; gap:20px;',
+                div(style='flex:1;',
+                  tags$div(style='font-size:12px; color:#64748b; margin-bottom:4px;', 'Growth Rate'),
+                  tags$div(style='font-size:15px; font-weight:700; color:#0284c7;', '+15.3%')
+                ),
+                div(style='flex:1;',
+                  tags$div(style='font-size:12px; color:#64748b; margin-bottom:4px;', 'Rank'),
+                  tags$div(style='font-size:15px; font-weight:700; color:#0B78A0;', '#3')
+                )
+              )
+            )
           )
         ),
-  # Row 2 - Developing
-  div(class='developing-header', HTML('<i class="fas fa-leaf"></i>'), h4('Developing Sectors')),
-  div(class='sector-row',
-          div(class='sector-card fade-in-up',
-            div(class='card-head',
-              div(class='left-icon', HTML('<i class="fas fa-heart"></i>')),
-              h4('Health', tags$span(class='sector-badge', 'Developing')),
-              span(class='sector-change', HTML('<i class="fas fa-arrow-up"></i> +3.2%'))
-            ),
-            div(class='perf-line',
-              div(class='perf-bar', tags$div(class='fill', `data-fill`='68%')), 
-              span(class='score', '68%')
-            ),
-            div(class='sector-desc', 'Ongoing investments to expand primary and advanced healthcare services')
+  # Developing Sectors - Donut Chart with Statistical Interpretations
+  div(class='developing-header', style='margin:40px 0 24px 0;', h4(style='color:var(--accent); margin:0;', HTML('<i class="fas fa-leaf" style="margin-right:8px;"></i>Developing Sectors'))),
+  div(class='high-perf-donut-container', style='display:flex; gap:32px; align-items:flex-start; margin-bottom:32px; flex-wrap:wrap;',
+    # Donut Chart Section
+    div(class='donut-chart-wrapper', style='flex:1; min-width:320px; max-width:480px; background:#ffffff; border-radius:20px; padding:28px; box-shadow: 0 8px 24px rgba(11,120,160,0.10); border:1px solid rgba(11,120,160,0.08);',
+      tags$h4(style='margin:0 0 20px 0; font-size:18px; font-weight:700; color:#0B78A0; text-align:center;', 'Performance Distribution'),
+      echarts4rOutput('developing_perf_donut', height = '360px')
+    ),
+    # Combined Statistical Interpretations Card
+    div(class='stats-interpretations', style='flex:1; min-width:320px; max-width:600px; background:#ffffff; border-radius:20px; padding:32px; box-shadow: 0 8px 24px rgba(11,120,160,0.10); border:1px solid rgba(11,120,160,0.08);',
+      tags$h4(style='margin:0 0 24px 0; font-size:20px; font-weight:700; color:#0B78A0; text-align:center;', 'Statistical Interpretations'),
+      # Education
+      div(style='padding-bottom:24px; margin-bottom:24px; border-bottom:1px solid rgba(11,120,160,0.12);',
+        div(style='display:flex; align-items:baseline; justify-content:space-between; margin-bottom:12px;',
+          tags$h4(style='margin:0; font-size:18px; font-weight:700; color:#0f172a;', 'Education'),
+          tags$span(style='font-size:28px; font-weight:900; color:#0284c7; line-height:1;', '72%')
+        ),
+        tags$p(style='margin:0 0 12px 0; color:#475569; font-size:14px; line-height:1.6;', 
+          'Improved access and quality with ongoing teacher training programs. The sector shows steady progress in enrollment rates, infrastructure development, and educational outcomes, with strategic investments in digital learning and curriculum modernization.'
+        ),
+        div(style='display:flex; gap:20px;',
+          div(style='flex:1;',
+            tags$div(style='font-size:12px; color:#64748b; margin-bottom:4px;', 'Growth Rate'),
+            tags$div(style='font-size:15px; font-weight:700; color:#0284c7;', '+2.8%')
           ),
-          div(class='sector-card fade-in-up',
-            div(class='card-head',
-              div(class='left-icon', HTML('<i class="fas fa-graduation-cap"></i>')),
-              h4('Education', tags$span(class='sector-badge', 'Developing')),
-              span(class='sector-change', HTML('<i class="fas fa-arrow-up"></i> +2.8%'))
-            ),
-            div(class='perf-line',
-              div(class='perf-bar', tags$div(class='fill', `data-fill`='72%')), 
-              span(class='score', '72%')
-            ),
-            div(class='sector-desc', 'Improved access and quality, with ongoing teacher training programs')
-          ),
-          div(class='sector-card fade-in-up',
-            div(class='card-head',
-              div(class='left-icon', HTML('<i class="fas fa-seedling"></i>')),
-              h4('Demographics & Agriculture', tags$span(class='sector-badge', 'Developing')),
-              span(class='sector-change', HTML('<i class="fas fa-arrow-up"></i> +1.9%'))
-            ),
-            div(class='perf-line',
-              div(class='perf-bar', tags$div(class='fill', `data-fill`='71%')), 
-              span(class='score', '71%')
-            ),
-            div(class='sector-desc', 'Steady productivity gains; focus on sustainable farming techniques')
+          div(style='flex:1;',
+            tags$div(style='font-size:12px; color:#64748b; margin-bottom:4px;', 'Rank'),
+            tags$div(style='font-size:15px; font-weight:700; color:#0B78A0;', '#1')
           )
         )
+      ),
+      # Demographics & Agriculture
+      div(style='padding-bottom:24px; margin-bottom:24px; border-bottom:1px solid rgba(11,120,160,0.12);',
+        div(style='display:flex; align-items:baseline; justify-content:space-between; margin-bottom:12px;',
+          tags$h4(style='margin:0; font-size:18px; font-weight:700; color:#0f172a;', 'Demographics & Agriculture'),
+          tags$span(style='font-size:28px; font-weight:900; color:#0ea5e9; line-height:1;', '71%')
+        ),
+        tags$p(style='margin:0 0 12px 0; color:#475569; font-size:14px; line-height:1.6;', 
+          'Steady productivity gains with focus on sustainable farming techniques. The sector demonstrates resilience through modern agricultural practices, improved crop yields, and effective demographic management supporting rural development and food security.'
+        ),
+        div(style='display:flex; gap:20px;',
+          div(style='flex:1;',
+            tags$div(style='font-size:12px; color:#64748b; margin-bottom:4px;', 'Growth Rate'),
+            tags$div(style='font-size:15px; font-weight:700; color:#0284c7;', '+1.9%')
+          ),
+          div(style='flex:1;',
+            tags$div(style='font-size:12px; color:#64748b; margin-bottom:4px;', 'Rank'),
+            tags$div(style='font-size:15px; font-weight:700; color:#0B78A0;', '#2')
+          )
+        )
+      ),
+      # Health
+      div(style='padding-bottom:0;',
+        div(style='display:flex; align-items:baseline; justify-content:space-between; margin-bottom:12px;',
+          tags$h4(style='margin:0; font-size:18px; font-weight:700; color:#0f172a;', 'Health'),
+          tags$span(style='font-size:28px; font-weight:900; color:#64748b; line-height:1;', '68%')
+        ),
+        tags$p(style='margin:0 0 12px 0; color:#475569; font-size:14px; line-height:1.6;', 
+          'Ongoing investments to expand primary and advanced healthcare services. The sector is making significant strides in healthcare accessibility, infrastructure development, and health outcomes, with continued focus on preventive care and medical technology integration.'
+        ),
+        div(style='display:flex; gap:20px;',
+          div(style='flex:1;',
+            tags$div(style='font-size:12px; color:#64748b; margin-bottom:4px;', 'Growth Rate'),
+            tags$div(style='font-size:15px; font-weight:700; color:#0284c7;', '+3.2%')
+          ),
+          div(style='flex:1;',
+            tags$div(style='font-size:12px; color:#64748b; margin-bottom:4px;', 'Rank'),
+            tags$div(style='font-size:15px; font-weight:700; color:#0B78A0;', '#3')
+          )
+        )
+      )
+    )
+  )
       )
     )
   ),
 
-  # Predictive Analysis Section (inserted below the overview/sector blocks)
-  # override default .section min-height so it doesn't create large vertical gap
-  div(class='section', style='min-height:0; padding-top:0px; margin-top:-8px; padding-bottom:2px; background: transparent;',
-    div(style='max-width:1200px; margin:0 auto;',
-      div(class='predict-section',
-        h3(class='predict-title', 'Predictive Analysis'),
-        div(class='predict-row',
-        div(class='predict-card', `data-id`='predict_gdp',
-          div(class='predict-header',
-            div(style='display:flex; align-items:center; gap:10px;', HTML('<div class="left-icon"><i class="fas fa-chart-line"></i></div><div><strong>GDP Projection</strong></div>')),
-            span(class='predict-year', '2028')
-          ),
-          div(class='predict-confidence', 'Confidence: High (85%)'),
-          div(class='predict-body',
-            div(class='current', HTML('<div style="font-size:12px; color:#556;">Current GDP Growth</div><div class="val">8.2%</div>')),
-            div(class='predicted', HTML('<div style="font-size:12px; color:#556;">Predicted Growth</div><div class="val">9.5%</div>'))
-          ),
-          div(class='predict-growth up', HTML('<i class="fas fa-arrow-up"></i> +1.3%')),
-          div(class='predict-bar', tags$div(class='predict-fill', `data-fill`='72%')),
-          div(class='predict-desc', 'Model indicates accelerating growth driven by services and FDI.')
-        ),
-        div(class='predict-card', `data-id`='predict_population',
-          div(class='predict-header',
-            div(style='display:flex; align-items:center; gap:10px;', HTML('<div class="left-icon"><i class="fas fa-users"></i></div><div><strong>Population Projection</strong></div>')),
-            span(class='predict-year', '2030')
-          ),
-          div(class='predict-confidence', 'Confidence: Medium (72%)'),
-          div(class='predict-body',
-            div(class='current', HTML('<div style="font-size:12px; color:#556;">Current Population</div><div class="val">14,104,969</div>')),
-            div(class='predicted', HTML('<div style="font-size:12px; color:#556;">Predicted Population (2030)</div><div class="val">20,100,000</div>'))
-          ),
-          div(class='predict-growth up', HTML('<i class="fas fa-arrow-up"></i> +42.5%')),
-          div(class='predict-bar', tags$div(class='predict-fill', `data-fill`='90%')),
-          div(class='predict-desc', 'Projected increase driven by natural growth and improved health services.')
-        ),
-        div(class='predict-card', `data-id`='predict_poverty',
-          div(class='predict-header',
-            div(style='display:flex; align-items:center; gap:10px;', HTML('<div class="left-icon"><i class="fas fa-chart-area"></i></div><div><strong>Poverty Rate Projection</strong></div>')),
-            span(class='predict-year', '2029')
-          ),
-          div(class='predict-confidence', 'Confidence: Medium (68%)'),
-          div(class='predict-body',
-            div(class='current', HTML('<div style="font-size:12px; color:#556;">Current Poverty Rate</div><div class="val">27.4%</div>')),
-            div(class='predicted', HTML('<div style="font-size:12px; color:#556;">Predicted Poverty Rate</div><div class="val">10.0%</div>'))
-          ),
-          div(class='predict-growth down', HTML('<i class="fas fa-arrow-down"></i> -17.4%')),
-          div(class='predict-bar', tags$div(class='predict-fill', `data-fill`='10%')),
-          div(class='predict-desc', 'Projected decline reflecting social protection and employment programs.')
-        )
-        )
-      )
-    )
-  ),
-  
   # Sectors section (organized two-row grid inside the Sectors tab)
-  div(id = 'sectors', class='section', style='min-height:0; padding-top:0px; padding-bottom:2px; margin-top:-8px;',
+  div(id = 'sectors', class='section ndip-reveal', `data-ndip-section`='true', style='min-height:0; padding-top:0px; padding-bottom:2px; margin-top:-8px;',
       h2(class='fade-in-up', 'Sector Dashboards'),
       div(class='fade-in-up sd-sub', 'Explore detailed insights across Rwanda\'s key development sectors'),
       # Grid with three cards (Economic, Demographics & Agriculture, Health & Education)
@@ -2485,7 +2792,7 @@ ui <- fluidPage(
   # User guide (interactive accordion-style)
   
   # make this section container-free: remove the section-alt background and reset min-height
-  div(id='guide', class='section', style='min-height:0; background:transparent; padding-top:12px; padding-bottom:6px;',
+  div(id='userguide', class='section ndip-reveal', `data-ndip-section`='true', style='min-height:0; background:transparent; padding-top:12px; padding-bottom:6px;',
     h2(class='fade-in-up','User Guide'),
 
     tags$style(HTML('
@@ -2496,8 +2803,8 @@ ui <- fluidPage(
       .ug-hdr .title { flex:1; font-weight:700; color:#123; font-size:16px; }
       .ug-hdr .chev { color:#2b2b2b; transition:transform .25s ease; }
       .ug-body { padding:0 18px 18px 82px; max-height:0; overflow:hidden; transition:max-height .35s ease; color:#334; line-height:1.6; }
-      .ug-item.open .ug-hdr { background: linear-gradient(90deg,#b7e3b8,#57c06a); }
-      .ug-item.open .icon { background:#dff3df; color:#0b5f2f; }
+      .ug-item.open .ug-hdr { background: linear-gradient(90deg,#bfdbfe,#60a5fa); }
+      .ug-item.open .icon { background:#dbeafe; color:#0369a1; }
       .ug-item.open .chev { transform: rotate(180deg); }
       .ug-item.open .ug-body { /* max-height expanded by JS based on content */ }
       @media (max-width:800px) { .ug-body { padding-left:18px; } .ug-hdr .title{ font-size:15px } }
@@ -2546,14 +2853,73 @@ ui <- fluidPage(
           div(class='chev', HTML('<i class="fas fa-chevron-down"></i>'))
         ),
         div(class='ug-body',
-          tags$p('Each sector dashboard contains KPIs, trends, maps and downloadable data. Use filters to change region and timeframe.'),
+          tags$p('Each sector dashboard provides comprehensive insights with interactive visualizations, machine learning predictions, and downloadable data.'),
           tags$ul(
-            tags$li('Click any "View Dashboard" button to navigate to the sector page.'),
-            tags$li('Use the export tools to download CSV snapshots where available.')
+            tags$li(HTML('<strong>Economic Dashboard:</strong> GDP trends, inflation rates, production output, and trade balance with Prophet ML forecasting.')),
+            tags$li(HTML('<strong>Demographics & Agriculture:</strong> Population trends, agricultural production, labor force statistics with Random Forest predictions.')),
+            tags$li(HTML('<strong>Health & Education:</strong> Health indicators, education metrics, and school statistics with advanced ML models.')),
+            tags$li(HTML('<strong>Interactive Charts:</strong> All charts use echarts4r for zooming, panning, and detailed tooltips.')),
           )
         )
       ),
 
+
+      # Data Access & Authentication
+      div(class='ug-item',
+        div(class='ug-hdr',
+          div(class='icon', HTML('<i class="fas fa-user-shield"></i>')),
+          div(class='title', 'Data Access & User Roles'),
+          div(class='chev', HTML('<i class="fas fa-chevron-down"></i>'))
+        ),
+        div(class='ug-body',
+          tags$p('NDIP supports role-based access for different user types:'),
+          tags$ul(
+            tags$li(HTML('<strong>Public Users:</strong> Access to view all dashboards, charts, and public data visualizations.')),
+            tags$li(HTML('<strong>Institutions:</strong> Can upload datasets, track submission status, and view published data.')),
+            tags$li(HTML('<strong>Reviewers:</strong> Review and approve/reject submitted datasets with detailed decision workspace.')),
+            tags$li(HTML('<strong>Administrators:</strong> Full access to publish datasets, manage users, view audit logs, and system notifications.'))
+          ),
+          tags$p(HTML('<strong>Login:</strong> Click the Login button in the top navigation to access role-specific dashboards.'))
+        )
+      ),
+
+      # Interactive Features
+      div(class='ug-item',
+        div(class='ug-hdr',
+          div(class='icon', HTML('<i class="fas fa-mouse-pointer"></i>')),
+          div(class='title', 'Interactive Features & Tips'),
+          div(class='chev', HTML('<i class="fas fa-chevron-down"></i>'))
+        ),
+        div(class='ug-body',
+          tags$p('Make the most of NDIP\'s interactive features:'),
+          tags$ul(
+            tags$li(HTML('<strong>Smooth Navigation:</strong> Use the top navigation bar for seamless scrolling between sections.')),
+            tags$li(HTML('<strong>Chart Interactions:</strong> Hover over charts for detailed tooltips, use zoom sliders, and click legend items to toggle series.')),
+            tags$li(HTML('<strong>Data Tables:</strong> Sort, search, and filter data tables using the built-in DT controls.')),
+            tags$li(HTML('<strong>Responsive Design:</strong> NDIP is fully responsive - access all features on desktop, tablet, and mobile devices.')),
+            tags$li(HTML('<strong>Export Options:</strong> Download charts and data tables in various formats where available.'))
+          )
+        )
+      ),
+
+      # Technical Support
+      div(class='ug-item',
+        div(class='ug-hdr',
+          div(class='icon', HTML('<i class="fas fa-life-ring"></i>')),
+          div(class='title', 'Need Help?'),
+          div(class='chev', HTML('<i class="fas fa-chevron-down"></i>'))
+        ),
+        div(class='ug-body',
+          tags$p('For technical support, data inquiries, or feature requests:'),
+          tags$ul(
+            tags$li(HTML('<strong>Documentation:</strong> Review this User Guide for detailed feature explanations.')),
+            tags$li(HTML('<strong>Data Sources:</strong> All data is sourced from official national statistics and verified datasets.')),
+            tags$li(HTML('<strong>Updates:</strong> NDIP is continuously updated with new data and enhanced features.')),
+            tags$li(HTML('<strong>Feedback:</strong> Your feedback helps us improve NDIP. Contact your system administrator for assistance.'))
+          ),
+          tags$p(HTML('<em>NDIP - Transforming data into actionable insights for Rwanda\'s development.</em>'))
+        )
+      ),
       
     ),
 
@@ -2583,11 +2949,181 @@ ui <- fluidPage(
 
   # contact block removed as requested
   ),
+
+  # ABOUT NDIP! (Mission & Vision) - placed at the bottom below User Guide
+  div(
+    id = 'about',
+    class = 'section about-bottom ndip-reveal',
+    `data-ndip-section` = 'true',
+    style = 'position:relative; background:#ffffff; padding:80px 20px 90px; margin-top:24px;',
+    tags$style(HTML("
+      .about-bottom { position: relative; overflow: visible; }
+      .about-bottom::after{
+        content:'';
+        position:absolute; inset:-200px -200px auto auto;
+        width:520px; height:520px; border-radius:999px;
+        background: radial-gradient(circle at 30% 30%, rgba(11,120,160,0.12), transparent 60%);
+        pointer-events:none;
+      }
+      .about-bottom .wrap{ max-width:1100px; margin:0 auto; position:relative; z-index:2; }
+      .about-bottom .hdr{ text-align:left; margin-bottom:42px; }
+      .about-bottom .hdr h2{
+        margin:0 0 12px 0;
+        font-size:40px; font-weight:900; letter-spacing:-1px;
+        background: linear-gradient(135deg, #0B78A0 0%, #0284c7 100%);
+        -webkit-background-clip:text; -webkit-text-fill-color:transparent; background-clip:text;
+      }
+      .about-bottom .hdr p{ margin:0; max-width:860px; color:#475569; font-size:16px; line-height:1.9; }
+      .about-bottom .grid{
+        display:grid; grid-template-columns: 1.2fr 1fr; gap:22px;
+        align-items:stretch;
+      }
+      .about-bottom .card{
+        background: #ffffff;
+        border:1px solid rgba(11,120,160,0.08);
+        border-radius:18px;
+        padding:26px 24px;
+        box-shadow: 0 4px 6px rgba(0,0,0,0.05), 0 10px 20px rgba(11,120,160,0.08), 0 0 0 1px rgba(11,120,160,0.03);
+        transition: transform .3s cubic-bezier(0.4, 0, 0.2, 1), box-shadow .3s cubic-bezier(0.4, 0, 0.2, 1);
+        position:relative;
+        overflow:visible;
+      }
+      .about-bottom .card::after{
+        content:'';
+        position:absolute; left:0; right:0; bottom:0; height:8px;
+        background: linear-gradient(180deg, rgba(11,120,160,0.15) 0%, rgba(2,132,199,0.08) 50%, transparent 100%);
+        border-radius:0 0 18px 18px;
+        opacity:0.6;
+        transition: opacity .3s ease;
+      }
+      .about-bottom .card:hover{
+        transform: translateY(-8px);
+        box-shadow: 0 8px 16px rgba(0,0,0,0.08), 0 20px 40px rgba(11,120,160,0.12), 0 0 0 1px rgba(11,120,160,0.05);
+      }
+      .about-bottom .card:hover::after{
+        opacity:1;
+        height:12px;
+      }
+      .about-bottom .tag{
+        display:inline-flex; align-items:center; gap:8px;
+        padding:8px 12px; border-radius:999px;
+        font-weight:800; font-size:12px; letter-spacing:.4px;
+        background: rgba(11,120,160,0.10);
+        color:#0B78A0;
+        margin-bottom:14px;
+      }
+      .about-bottom .card h3{ margin:0 0 10px 0; font-size:20px; font-weight:800; color:#0f172a; }
+      .about-bottom .card p{ margin:0; color:#475569; font-size:15px; line-height:1.85; }
+      .about-bottom .big{
+        display:flex; flex-direction:column; justify-content:center;
+        background: #ffffff;
+      }
+      .about-bottom .big .tag{ background: rgba(2,132,199,0.10); color:#0284c7; }
+      .about-bottom .big p{ font-size:15px; }
+      @media (max-width: 900px){
+        .about-bottom .grid{ grid-template-columns:1fr; }
+        .about-bottom .hdr h2{ font-size:34px; }
+      }
+    ")),
+    div(
+      class = 'wrap',
+      div(
+        class = 'hdr',
+        tags$h2('ABOUT NDIP!'),
+        tags$p('The National Data Intelligence Platform (NDIP) turns Rwanda’s data into clear insights and stories—connecting institutions, standardizing datasets, and presenting trusted indicators through intuitive visualizations.')
+      ),
+      div(
+        class = 'grid',
+        div(
+          class = 'card big',
+          div(class='tag', HTML('<i class="fas fa-circle-nodes"></i>'), 'What NDIP is'),
+          tags$h3('A single source of truth for Rwanda in numbers'),
+          tags$p('NDIP brings together sector data into one secure, governed platform—reducing fragmentation, improving data quality, and transforming numbers into meaningful insights and visual stories for everyone to understand.')
+        ),
+        div(
+          style='display:flex; flex-direction:column; gap:22px;',
+          div(
+            class = 'card',
+            div(class='tag', HTML('<i class="fas fa-bullseye"></i>'), 'Mission'),
+            tags$h3('Mission'),
+            tags$p('To provide accurate, timely national data insights by integrating institutional sources and translating Rwanda’s numbers into accessible visualizations and real-world stories that support evidence-based decisions.')
+          ),
+          div(
+            class = 'card',
+            div(class='tag', HTML('<i class="fas fa-eye"></i>'), 'Vision'),
+            tags$h3('Vision'),
+            tags$p('A data-driven Rwanda where trusted insights are instantly available to accelerate planning, service delivery, innovation, and sustainable development.')
+          )
+        )
+      )
+    )
+  ),
   
-  # Close main content wrapper so footer is a sibling pushed to bottom
+  # Footer: Professional footer placed right after User Guide section
+  div(
+    class = 'ndip-reveal',
+    style = "width:100vw; position:relative; left:50%; right:50%; margin-left:-50vw; margin-right:-50vw; background:linear-gradient(135deg, #2C5F7C 0%, #1E6B7A 100%); padding-top:48px; padding-bottom:48px; padding-left:clamp(40px,6vw,80px); padding-right:clamp(40px,6vw,80px); margin-top:60px; margin-bottom:0 !important;",
+    div(
+      style = "width:100%; max-width:1200px; margin:0 auto; line-height:1.5; color:#ffffff;",
+      fluidRow(
+        style = "gap:24px;",
+        column(
+          width = 4,
+          div(
+            style = "display:flex; gap:14px; align-items:flex-start;",
+            div(
+              style = "width:48px; height:48px; border-radius:10px; background:#ffffff; color:#0B78A0; display:flex; align-items:center; justify-content:center; font-weight:700; flex-shrink:0;",
+              "RW"
+            ),
+            div(
+              tags$div(style="font-weight:700; font-size:20px; color:#ffffff; margin-bottom:4px;", "NDIP Rwanda"),
+              tags$div(style="color:#e3f2fd; font-size:14px; margin-bottom:10px;", "National Data Intelligence Platform"),
+              tags$p(style="margin:0; color:#ffffff; font-size:14px; line-height:1.6;", "Empowering Rwanda through transparent, accessible, and actionable data insights.")
+            )
+          )
+        ),
+        column(
+          width = 2,
+          tags$div(style="font-weight:600; font-size:16px; color:#ffffff; margin-bottom:12px;", "Platform"),
+          tags$a(href="#home", style="display:block; margin:4px 0; color:#e3f2fd; text-decoration:none; cursor:pointer; transition:color 0.2s ease; font-size:14px;", onmouseover="this.style.color='#ffffff'", onmouseout="this.style.color='#e3f2fd'", "Home"),
+          tags$a(href="#overview", style="display:block; margin:4px 0; color:#e3f2fd; text-decoration:none; cursor:pointer; transition:color 0.2s ease; font-size:14px;", onmouseover="this.style.color='#ffffff'", onmouseout="this.style.color='#e3f2fd'", "Overview"),
+          tags$a(href="#sectors", style="display:block; margin:4px 0; color:#e3f2fd; text-decoration:none; cursor:pointer; transition:color 0.2s ease; font-size:14px;", onmouseover="this.style.color='#ffffff'", onmouseout="this.style.color='#e3f2fd'", "Sectors"),
+          tags$a(href="#userguide", style="display:block; margin:4px 0; color:#e3f2fd; text-decoration:none; cursor:pointer; transition:color 0.2s ease; font-size:14px;", onmouseover="this.style.color='#ffffff'", onmouseout="this.style.color='#e3f2fd'", "User Guide"),
+          tags$a(href="#about", style="display:block; margin:4px 0; color:#e3f2fd; text-decoration:none; cursor:pointer; transition:color 0.2s ease; font-size:14px;", onmouseover="this.style.color='#ffffff'", onmouseout="this.style.color='#e3f2fd'", "About Us")
+        ),
+        column(
+          width = 2,
+          tags$div(style="font-weight:600; font-size:16px; color:#ffffff; margin-bottom:12px;", "Resources"),
+          tags$p(style="margin:4px 0; color:#e3f2fd; font-size:14px;", tagList("Institutional Portal ", icon("arrow-up-right-from-square"))),
+          tags$p(style="margin:4px 0; color:#e3f2fd; font-size:14px;", "API Documentation"),
+          tags$p(style="margin:4px 0; color:#e3f2fd; font-size:14px;", "Data Standards")
+        ),
+        column(
+          width = 3,
+          tags$div(style="font-weight:600; font-size:16px; color:#ffffff; margin-bottom:12px;", "Contact"),
+          div(
+            style = "display:flex; align-items:center; gap:10px; margin-bottom:6px; color:#e3f2fd; font-size:14px;",
+            icon("envelope"),
+            tags$span("ndip@gmail.com")
+          ),
+          div(
+            style = "display:flex; align-items:center; gap:10px; color:#e3f2fd; font-size:14px;",
+            icon("phone"),
+            tags$span("+250-785-694-467")
+          )
+        )
+      ),
+      tags$hr(style="margin-top:25px; margin-bottom:20px; border-color:rgba(255,255,255,0.3);"),
+      tags$p(
+        style = "margin:0; text-align:center; color:#ffffff; font-weight:500; font-size:14px;",
+        "© 2025 Republic of Rwanda. All rights reserved. | Built with transparency and innovation. | Created by Gatete"
+      )
+    )
+  ),
+  
+  # Close main content wrapper
   ),
 
-  # Footer: standard block at the end of the page (not fixed). It will appear after the User Guide section.
   # Menya chatbot (floating button + modal)
   div(class='menya-btn', id='menyaBtn', HTML('<svg width="26" height="26" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M12 2C6.48 2 2 5.58 2 10c0 2.4 1.56 4.55 4 5.84V22l4.01-2.22C11.64 19.99 11.82 20 12 20c5.52 0 10-3.58 10-8s-4.48-10-10-10z" fill="white"/></svg>')),
 
@@ -2604,7 +3140,6 @@ ui <- fluidPage(
           tags$li(HTML('<a href="#overview" class="side-link"><span class="side-icon"><i class="fas fa-chart-pie"></i></span><span class="side-text">Overview</span><span class="side-pill"></span></a>')),
           tags$li(HTML('<a href="#security_metrics" class="side-link"><span class="side-icon"><i class="fas fa-shield-alt"></i></span><span class="side-text">Security Metrics</span><span class="side-pill"></span></a>')),
           tags$li(HTML('<a href="#governance_indicators" class="side-link"><span class="side-icon"><i class="fas fa-gavel"></i></span><span class="side-text">Governance Indicators</span><span class="side-pill"></span></a>')),
-          tags$li(HTML('<a href="#predict" class="side-link"><span class="side-icon"><i class="fas fa-brain"></i></span><span class="side-text">Predictive Analysis</span><span class="side-pill"></span></a>'))
         )
       ),
       tags$div(style='margin-top:auto; font-size:13px; opacity:0.95; color:#fff;', HTML('<a href="#" id="close-governance-left" style="color:#fff; text-decoration:none; font-weight:800;">Close</a>'))
@@ -2656,66 +3191,6 @@ ui <- fluidPage(
       }
     }
   ")),
-  
-  # Inline footer (matches provided reference design)
-  div(
-    style = "width:100vw; position:relative; left:50%; right:50%; margin-left:-50vw; margin-right:-50vw; background:linear-gradient(135deg, #5DADE2 0%, #85C1E9 100%); padding-top:48px; padding-bottom:48px; padding-left:clamp(40px,6vw,80px); padding-right:clamp(40px,6vw,80px); margin-top:40px; margin-bottom:0 !important;",
-    div(
-      style = "width:100%; line-height:1.5; color:#ffffff;",
-      fluidRow(
-        style = "gap:24px;",
-        column(
-          width = 4,
-          div(
-            style = "display:flex; gap:14px; align-items:flex-start;",
-            div(
-              style = "width:48px; height:48px; border-radius:10px; background:#ffffff; color:#0B78A0; display:flex; align-items:center; justify-content:center; font-weight:700;",
-              "RW"
-            ),
-            div(
-              tags$div(style="font-weight:700; font-size:20px; color:#ffffff;", "NDIP Rwanda"),
-              tags$div(style="color:#e3f2fd; font-size:14px; margin-bottom:10px;", "National Data Integration Platform"),
-              tags$p(style="margin:0; color:#ffffff;", "Empowering Rwanda through transparent, accessible, and actionable data insights.")
-            )
-          )
-        ),
-        column(
-          width = 2,
-          tags$div(style="font-weight:600; font-size:16px; color:#ffffff; margin-bottom:12px;", "Platform"),
-          tags$a(href="#home", style="display:block; margin:4px 0; color:#e3f2fd; text-decoration:none; cursor:pointer; transition:color 0.2s ease;", onmouseover="this.style.color='#ffffff'", onmouseout="this.style.color='#e3f2fd'", "Home"),
-          tags$a(href="#overview", style="display:block; margin:4px 0; color:#e3f2fd; text-decoration:none; cursor:pointer; transition:color 0.2s ease;", onmouseover="this.style.color='#ffffff'", onmouseout="this.style.color='#e3f2fd'", "Overview"),
-          tags$a(href="#sectors", style="display:block; margin:4px 0; color:#e3f2fd; text-decoration:none; cursor:pointer; transition:color 0.2s ease;", onmouseover="this.style.color='#ffffff'", onmouseout="this.style.color='#e3f2fd'", "Sectors"),
-          tags$a(href="#guide", style="display:block; margin:4px 0; color:#e3f2fd; text-decoration:none; cursor:pointer; transition:color 0.2s ease;", onmouseover="this.style.color='#ffffff'", onmouseout="this.style.color='#e3f2fd'", "User Guide")
-        ),
-        column(
-          width = 2,
-          tags$div(style="font-weight:600; font-size:16px; color:#ffffff; margin-bottom:12px;", "Resources"),
-          tags$p(style="margin:4px 0; color:#e3f2fd;", tagList("Institutional Portal ", icon("arrow-up-right-from-square"))),
-          tags$p(style="margin:4px 0; color:#e3f2fd;", "API Documentation"),
-          tags$p(style="margin:4px 0; color:#e3f2fd;", "Data Standards")
-        ),
-        column(
-          width = 3,
-          tags$div(style="font-weight:600; font-size:16px; color:#ffffff; margin-bottom:12px;", "Contact"),
-          div(
-            style = "display:flex; align-items:center; gap:10px; margin-bottom:6px; color:#e3f2fd;",
-            icon("envelope"),
-            tags$span("ndip@gmail.com")
-          ),
-          div(
-            style = "display:flex; align-items:center; gap:10px; color:#e3f2fd;",
-            icon("phone"),
-            tags$span("+250-785-694-467")
-          )
-        )
-      ),
-      tags$hr(style="margin-top:25px; margin-bottom:20px; border-color:rgba(255,255,255,0.3);"),
-      tags$p(
-        style = "margin:0; text-align:center; color:#ffffff; font-weight:500;",
-        "© 2025 Republic of Rwanda. All rights reserved. | Built with transparency and innovation. | Created by Gatete"
-      )
-    )
-  ),
   
   # Force remove any space after footer - comprehensive fix
   tags$style(HTML("
@@ -2775,8 +3250,7 @@ ui <- fluidPage(
       setTimeout(removeBottomSpacing, 500);
     })();
   "))
-
-))
+)
 
 
 
@@ -2793,7 +3267,7 @@ server <- function(input, output, session) {
   if (!exists('Rwanda_GDP') || is.null(Rwanda_GDP)) {
     tryCatch({
       message("[ECONOMIC] Loading GDP data from CSV...")
-      Rwanda_GDP <<- read.csv("data/datasets/Rwanda_GDP_Yearly_2010_2025.csv", stringsAsFactors = FALSE)
+      Rwanda_GDP <<- read.csv(ndip_dataset_path("Rwanda_GDP_Yearly_2010_2025.csv"), stringsAsFactors = FALSE)
       message("[ECONOMIC] ✅ GDP data loaded")
     }, error = function(e) {
       message(sprintf("[ECONOMIC] ❌ Failed to load GDP: %s", e$message))
@@ -2803,7 +3277,7 @@ server <- function(input, output, session) {
   if (!exists('Rwanda_inflation') || is.null(Rwanda_inflation)) {
     tryCatch({
       message("[ECONOMIC] Loading inflation data from CSV...")
-      Rwanda_inflation <<- read.csv("data/datasets/Rwanda_Inflation.csv", stringsAsFactors = FALSE)
+      Rwanda_inflation <<- read.csv(ndip_dataset_path("Rwanda_Inflation.csv"), stringsAsFactors = FALSE)
       message("[ECONOMIC] ✅ Inflation data loaded")
     }, error = function(e) {
       message(sprintf("[ECONOMIC] ❌ Failed to load inflation: %s", e$message))
@@ -2813,7 +3287,7 @@ server <- function(input, output, session) {
   if (!exists('Rwanda_production_output') || is.null(Rwanda_production_output)) {
     tryCatch({
       message("[ECONOMIC] Loading production data from CSV...")
-      Rwanda_production_output <<- read.csv("data/datasets/Rwanda_Production_Output.csv", stringsAsFactors = FALSE)
+      Rwanda_production_output <<- read.csv(ndip_dataset_path("Rwanda_Production_Output.csv"), stringsAsFactors = FALSE)
       message("[ECONOMIC] ✅ Production data loaded")
     }, error = function(e) {
       message(sprintf("[ECONOMIC] ❌ Failed to load production: %s", e$message))
@@ -2823,7 +3297,7 @@ server <- function(input, output, session) {
   if (!exists('Rwanda_trade') || is.null(Rwanda_trade)) {
     tryCatch({
       message("[ECONOMIC] Loading trade data from CSV...")
-      Rwanda_trade <<- read.csv("data/datasets/Rwanda_Trade.csv", stringsAsFactors = FALSE)
+      Rwanda_trade <<- read.csv(ndip_dataset_path("Rwanda_Trade.csv"), stringsAsFactors = FALSE)
       message("[ECONOMIC] ✅ Trade data loaded")
     }, error = function(e) {
       message(sprintf("[ECONOMIC] ❌ Failed to load trade: %s", e$message))
@@ -2941,24 +3415,242 @@ server <- function(input, output, session) {
   fit_gdp_model <- reactive({
     ts_data <- gdp_ts_data()
     
-    model <- switch(input$gdp_model_type,
-      "arima_111" = Arima(ts_data, order=c(1,1,1)),
-      "arima_212" = Arima(ts_data, order=c(2,1,2))
-    )
-    
-    return(model)
+    if(input$gdp_model_type == "prophet") {
+      # Prophet model will be fitted in the forecast function
+      return(NULL)
+    } else {
+      model <- switch(input$gdp_model_type,
+        "arima_111" = Arima(ts_data, order=c(1,1,1)),
+        "arima_212" = Arima(ts_data, order=c(2,1,2))
+      )
+      return(model)
+    }
   })
 
-  # GDP Forecast Plot
-  output$gdp_forecast_plot <- renderPlotly({
-    model <- fit_gdp_model()
-    ts_data <- gdp_ts_data()
+  # GDP ML Chart (Prophet) - echarts4r
+  output$gdp_ml_chart <- renderEcharts4r({
+    req(input$gdp_metric_ml)
     
-    # Generate forecast
-    forecast_data <- forecast(model, h=5)  # 5 years ahead
+    # Get GDP data
+    gdp_data <- if(exists("Rwanda_GDP")) Rwanda_GDP else NULL
+    if(is.null(gdp_data)) {
+      return(e_charts() %>% e_title("GDP data not available"))
+    }
+    
+    # Select variable based on metric
+    var_name <- if(input$gdp_metric_ml == 'growth_rate') {
+      growth_cols <- names(gdp_data)[grepl('growth|rate', names(gdp_data), ignore.case = TRUE) & sapply(gdp_data, is.numeric)]
+      if(length(growth_cols) > 0) growth_cols[1] else names(gdp_data)[sapply(gdp_data, is.numeric)][1]
+    } else {
+      gdp_cols <- names(gdp_data)[grepl('gdp|nominal', names(gdp_data), ignore.case = TRUE) & sapply(gdp_data, is.numeric)]
+      if(length(gdp_cols) > 0) gdp_cols[1] else names(gdp_data)[sapply(gdp_data, is.numeric)][1]
+    }
+    
+    if("Year" %in% names(gdp_data)) names(gdp_data)[names(gdp_data) == "Year"] <- "year"
+    
+    # Generate Prophet forecast
+    forecast_data <- create_prophet_forecast(gdp_data, var_name, forecast_years = 5)
+    
+    if(!is.null(forecast_data$error)) {
+      return(e_charts() %>% e_title(paste("Error:", forecast_data$error)))
+    }
+    
+    # Prepare data for echarts
+    y_title <- if(input$gdp_metric_ml == 'growth_rate') "GDP Growth Rate (%)" else "GDP (USD Billions)"
+    
+    # Combine historical and forecast data
+    all_years <- c(forecast_data$hist_years, forecast_data$f_years)
+    all_values <- c(forecast_data$hist_values, forecast_data$f_mean)
+    all_lower <- c(rep(NA, length(forecast_data$hist_values)), forecast_data$f_lower)
+    all_upper <- c(rep(NA, length(forecast_data$hist_values)), forecast_data$f_upper)
+    
+    chart_data <- data.frame(
+      year = all_years,
+      value = all_values,
+      lower = all_lower,
+      upper = all_upper,
+      type = c(rep("Historical", length(forecast_data$hist_years)), rep("Forecast", length(forecast_data$f_years)))
+    )
+    
+    chart_data %>%
+      e_charts(year) %>%
+      e_line(value, 
+             name = "Historical & Forecast",
+             lineStyle = list(color = "#0B78A0", width = 3),
+             itemStyle = list(color = "#0B78A0"),
+             symbol = "circle",
+             symbolSize = 8) %>%
+      e_area_(c("lower", "upper"),
+              name = "95% Confidence Interval",
+              stack = "confidence",
+              itemStyle = list(color = "rgba(2, 132, 199, 0.2)"),
+              lineStyle = list(opacity = 0),
+              areaStyle = list(opacity = 0.3)) %>%
+      e_tooltip(
+        trigger = "axis",
+        formatter = htmlwidgets::JS("
+          function(params) {
+            var result = '<strong>' + params[0].axisValue + '</strong><br/>';
+            params.forEach(function(item) {
+              if(item.seriesName !== '95% Confidence Interval') {
+                result += item.marker + ' ' + item.seriesName + ': ' + 
+                          (item.value !== null ? item.value.toFixed(2) : 'N/A') + '<br/>';
+              }
+            });
+            return result;
+          }
+        ")
+      ) %>%
+      e_x_axis(
+        name = "Year",
+        type = "category",
+        axisLabel = list(rotate = 0)
+      ) %>%
+      e_y_axis(
+        name = y_title,
+        type = "value"
+      ) %>%
+      e_legend(show = TRUE, top = "8%") %>%
+      e_title(
+        text = paste("GDP Forecast - Prophet ML Model"),
+        left = "center",
+        top = "2%",
+        textStyle = list(fontSize = 18, fontWeight = "bold", color = "#0B78A0")
+      ) %>%
+      e_grid(left = "10%", right = "10%", bottom = "15%", top = "20%") %>%
+      e_datazoom(type = "slider", start = 0, end = 100)
+  })
+  
+  # GDP ML Metrics
+  output$gdp_ml_metrics <- renderUI({
+    req(input$gdp_metric_ml)
+    
+    gdp_data <- if(exists("Rwanda_GDP")) Rwanda_GDP else NULL
+    if(is.null(gdp_data)) return(HTML("GDP data not available"))
+    
+    var_name <- if(input$gdp_metric_ml == 'growth_rate') {
+      growth_cols <- names(gdp_data)[grepl('growth|rate', names(gdp_data), ignore.case = TRUE) & sapply(gdp_data, is.numeric)]
+      if(length(growth_cols) > 0) growth_cols[1] else names(gdp_data)[sapply(gdp_data, is.numeric)][1]
+    } else {
+      gdp_cols <- names(gdp_data)[grepl('gdp|nominal', names(gdp_data), ignore.case = TRUE) & sapply(gdp_data, is.numeric)]
+      if(length(gdp_cols) > 0) gdp_cols[1] else names(gdp_data)[sapply(gdp_data, is.numeric)][1]
+    }
+    
+    if("Year" %in% names(gdp_data)) names(gdp_data)[names(gdp_data) == "Year"] <- "year"
+    
+    forecast_data <- create_prophet_forecast(gdp_data, var_name, forecast_years = 5)
+    if(!is.null(forecast_data$error)) {
+      return(HTML(paste0("<p style='color:red;'>Error: ", forecast_data$error, "</p>")))
+    }
+    
+    m <- forecast_data$metrics
+    HTML(paste0(
+      "<div style='font-size:12px; line-height:1.8;'>",
+      "<strong>Model:</strong> Prophet ML<br><br>",
+      "<strong>Performance Metrics:</strong><br>",
+      "RMSE: ", sprintf("%.2f", m$rmse), "<br>",
+      "MAE: ", sprintf("%.2f", m$mae), "<br><br>",
+      "<strong>Diagnostics:</strong><br>",
+      "Std Dev: ", sprintf("%.2f", m$std_dev), "<br>",
+      "Variance: ", sprintf("%.2f", m$variance),
+      "</div>"
+    ))
+  })
+  
+  # GDP ML Interpretation
+  output$gdp_ml_interpretation <- renderUI({
+    req(input$gdp_metric_ml)
+    
+    gdp_data <- if(exists("Rwanda_GDP")) Rwanda_GDP else NULL
+    if(is.null(gdp_data)) return(HTML("GDP data not available"))
+    
+    var_name <- if(input$gdp_metric_ml == 'growth_rate') {
+      growth_cols <- names(gdp_data)[grepl('growth|rate', names(gdp_data), ignore.case = TRUE) & sapply(gdp_data, is.numeric)]
+      if(length(growth_cols) > 0) growth_cols[1] else names(gdp_data)[sapply(gdp_data, is.numeric)][1]
+    } else {
+      gdp_cols <- names(gdp_data)[grepl('gdp|nominal', names(gdp_data), ignore.case = TRUE) & sapply(gdp_data, is.numeric)]
+      if(length(gdp_cols) > 0) gdp_cols[1] else names(gdp_data)[sapply(gdp_data, is.numeric)][1]
+    }
+    
+    if("Year" %in% names(gdp_data)) names(gdp_data)[names(gdp_data) == "Year"] <- "year"
+    
+    forecast_data <- create_prophet_forecast(gdp_data, var_name, forecast_years = 5)
+    if(!is.null(forecast_data$error)) {
+      return(HTML(paste0("<p style='color:red;'>Error: ", forecast_data$error, "</p>")))
+    }
+    
+    next_year <- forecast_data$forecast_value
+    current_value <- forecast_data$current_value
+    lower_ci <- forecast_data$f_lower[1]
+    upper_ci <- forecast_data$f_upper[1]
+    change_pct <- forecast_data$change_pct
+    
+    metric_name <- if(input$gdp_metric_ml == 'growth_rate') "GDP growth rate" else "nominal GDP"
+    
+    interpretation <- sprintf(
+      "Using the Prophet ML model, Rwanda's %s is forecasted to be %.2f in 2025 (95%% CI: %.2f to %.2f). This represents a %.1f%% change from the current value of %.2f. Prophet captures seasonal patterns and trends, indicating %s.",
+      metric_name, next_year, lower_ci, upper_ci, change_pct, current_value,
+      if(change_pct > 0) "positive economic growth ahead" else "potential moderation in growth"
+    )
+    
+    HTML(paste0("<div style='font-size:13px; line-height:1.6; color:#475569;'>", interpretation, "</div>"))
+  })
+  
+  # GDP Forecast Plot (ARIMA)
+  output$gdp_forecast_plot <- renderPlotly({
+    req(input$gdp_metric_arima, input$gdp_model_type_arima)
+    
+    # Get GDP data
+    gdp_data <- if(exists("Rwanda_GDP")) Rwanda_GDP else NULL
+    if(is.null(gdp_data)) {
+      return(plotly_empty() %>% layout(title = "GDP data not available"))
+    }
+    
+    # Select variable based on metric
+    var_name <- if(input$gdp_metric_arima == 'growth_rate') {
+      # Find growth rate column
+      growth_cols <- names(gdp_data)[grepl('growth|rate', names(gdp_data), ignore.case = TRUE) & sapply(gdp_data, is.numeric)]
+      if(length(growth_cols) > 0) growth_cols[1] else names(gdp_data)[sapply(gdp_data, is.numeric)][1]
+    } else {
+      # Find nominal GDP column
+      gdp_cols <- names(gdp_data)[grepl('gdp|nominal', names(gdp_data), ignore.case = TRUE) & sapply(gdp_data, is.numeric)]
+      if(length(gdp_cols) > 0) gdp_cols[1] else names(gdp_data)[sapply(gdp_data, is.numeric)][1]
+    }
+    
+    # Normalize year column
+    if("Year" %in% names(gdp_data)) names(gdp_data)[names(gdp_data) == "Year"] <- "year"
+    
+    # Generate ARIMA forecast
+    model <- switch(input$gdp_model_type_arima,
+      "arima_111" = {
+        ts_data <- gdp_ts_data()
+        Arima(ts_data, order=c(1,1,1))
+      },
+      "arima_212" = {
+        ts_data <- gdp_ts_data()
+        Arima(ts_data, order=c(2,1,2))
+      }
+    )
+    
+    ts_data <- gdp_ts_data()
+    forecast_result <- forecast(model, h=5)
+    
+    # Convert to format for plotting
+    hist_years <- if("year" %in% names(gdp_data)) as.numeric(gdp_data$year) else 2010:2024
+    hist_values <- as.numeric(gdp_data[[var_name]])
+    f_years <- (max(hist_years, na.rm = TRUE) + 1):(max(hist_years, na.rm = TRUE) + 5)
+    
+    forecast_data <- list(
+      hist_years = hist_years,
+      hist_values = hist_values,
+      f_years = f_years,
+      f_mean = as.numeric(forecast_result$mean),
+      f_lower = as.numeric(forecast_result$lower[,"95%"]),
+      f_upper = as.numeric(forecast_result$upper[,"95%"])
+    )
     
     # Set metric-specific parameters
-    if(input$gdp_metric == 'growth_rate') {
+    if(input$gdp_metric_arima == 'growth_rate') {
       y_title <- "GDP Growth Rate (%)"
       hist_name <- "Historical GDP Growth"
       plot_title <- "GDP Growth Rate Forecast"
@@ -2968,29 +3660,32 @@ server <- function(input, output, session) {
       plot_title <- "Nominal GDP Forecast"
     }
     
+    # Model display name
+    model_display <- switch(input$gdp_model_type_arima,
+      "arima_111" = "ARIMA(1,1,1)",
+      "arima_212" = "ARIMA(2,1,2)"
+    )
+    
     # Create plot
     p <- plot_ly() %>%
       # Historical data
-      add_lines(x = 2010:2024, y = as.numeric(ts_data),
+      add_lines(x = forecast_data$hist_years, y = forecast_data$hist_values,
                 name = hist_name,
                 line = list(color = "#0B78A0", width = 2)) %>%
       # Forecast
-      add_lines(x = 2025:2029, y = as.numeric(forecast_data$mean),
+      add_lines(x = forecast_data$f_years, y = forecast_data$f_mean,
                 name = "Forecast",
-                line = list(color = "#157A4A", width = 2, dash = "dash")) %>%
+                line = list(color = "#0284c7", width = 2, dash = "dash")) %>%
       # Confidence intervals
-      add_ribbons(x = 2025:2029,
-                 ymin = as.numeric(forecast_data$lower[,"95%"]),
-                 ymax = as.numeric(forecast_data$upper[,"95%"]),
+      add_ribbons(x = forecast_data$f_years,
+                 ymin = forecast_data$f_lower,
+                 ymax = forecast_data$f_upper,
                  name = "95% CI",
-                 fillcolor = "rgba(21, 122, 74, 0.2)",
+                 fillcolor = "rgba(2, 132, 199, 0.2)",
                  line = list(color = "transparent")) %>%
       layout(
         title = list(
-          text = paste(plot_title, "-", 
-                      switch(input$gdp_model_type,
-                            "arima_111" = "ARIMA(1,1,1)",
-                            "arima_212" = "ARIMA(2,1,2)")),
+          text = paste(plot_title, "-", model_display),
           x = 0
         ),
         xaxis = list(title = "Year", 
@@ -3008,10 +3703,17 @@ server <- function(input, output, session) {
     p
   })
 
-  # Model performance metrics
+  # Model performance metrics (ARIMA)
   output$gdp_model_metrics <- renderPrint({
-    model <- fit_gdp_model()
-    cat("Model Information:\n")
+    req(input$gdp_metric_arima, input$gdp_model_type_arima)
+    
+    ts_data <- gdp_ts_data()
+    model <- switch(input$gdp_model_type_arima,
+      "arima_111" = Arima(ts_data, order=c(1,1,1)),
+      "arima_212" = Arima(ts_data, order=c(2,1,2))
+    )
+    
+    cat("Model:", switch(input$gdp_model_type_arima, "arima_111" = "ARIMA(1,1,1)", "arima_212" = "ARIMA(2,1,2)"), "\n")
     cat("------------------\n")
     cat("AIC:", round(model$aic, 2), "\n")
     cat("BIC:", round(model$bic, 2), "\n")
@@ -3019,24 +3721,25 @@ server <- function(input, output, session) {
     cat("MAE:", round(mean(abs(model$residuals)), 2), "\n")
   })
 
-  # GDP Interpretation
+  # GDP Interpretation (ARIMA)
   output$gdp_interpretation <- renderText({
-    model <- fit_gdp_model()
-    forecast_data <- forecast(model, h=5)
-    ts_data <- gdp_ts_data()
+    req(input$gdp_metric_arima, input$gdp_model_type_arima)
     
-    # Get next year's forecast and current year's value
+    ts_data <- gdp_ts_data()
+    model <- switch(input$gdp_model_type_arima,
+      "arima_111" = Arima(ts_data, order=c(1,1,1)),
+      "arima_212" = Arima(ts_data, order=c(2,1,2))
+    )
+    
+    forecast_data <- forecast(model, h=5)
     next_year <- forecast_data$mean[1]
     current_value <- tail(ts_data, 1)
     lower_ci <- forecast_data$lower[1, "95%"]
     upper_ci <- forecast_data$upper[1, "95%"]
-    
-    # Calculate year-over-year change
     yoy_change <- ((next_year - current_value) / current_value) * 100
     
-    if(input$gdp_metric == 'growth_rate') {
-      # ARIMA(1,1,1) interpretation for growth rate
-      if(input$gdp_model_type == "arima_111") {
+    if(input$gdp_metric_arima == 'growth_rate') {
+      if(input$gdp_model_type_arima == "arima_111") {
         sprintf(
           "Using the ARIMA(1,1,1) model, Rwanda's GDP growth rate is forecasted to be %.1f%% in 2025 (95%% CI: %.1f%% to %.1f%%). This represents a %.1f percentage point change from the current rate of %.1f%%. %s",
           next_year,
@@ -3070,7 +3773,7 @@ server <- function(input, output, session) {
       }
     } else {
       # ARIMA(1,1,1) interpretation for nominal GDP
-      if(input$gdp_model_type == "arima_111") {
+      if(input$gdp_model_type_arima == "arima_111") {
         sprintf(
           "The ARIMA(1,1,1) model forecasts Rwanda's nominal GDP to reach %.1f USD billions in 2025 (95%% CI: %.1f to %.1f USD billions). This represents a %.1f%% increase from the current level of %.1f USD billions. %s",
           next_year,
@@ -3105,7 +3808,270 @@ server <- function(input, output, session) {
     }
   })
   
-  # Function to fit selected inflation model
+  # Inflation ML Chart (Prophet) - echarts4r
+  output$inflation_ml_chart <- renderEcharts4r({
+    req(exists("Rwanda_inflation"))
+    df <- Rwanda_inflation
+    req(all(c("Year", "Annual averg-Inflation_Rate_Percent") %in% names(df)))
+    
+    df <- df %>%
+      mutate(Year = as.integer(Year),
+             Rate = as.numeric(`Annual averg-Inflation_Rate_Percent`)) %>%
+      arrange(Year)
+    
+    if("Year" %in% names(df)) names(df)[names(df) == "Year"] <- "year"
+    df$inflation_rate <- df$Rate
+    
+    forecast_data <- create_prophet_forecast(df, "inflation_rate", forecast_years = 5)
+    
+    if(!is.null(forecast_data$error)) {
+      return(e_charts() %>% e_title(paste("Error:", forecast_data$error)))
+    }
+    
+    # Combine historical and forecast data
+    all_years <- c(forecast_data$hist_years, forecast_data$f_years)
+    all_values <- c(forecast_data$hist_values, forecast_data$f_mean)
+    all_lower <- c(rep(NA, length(forecast_data$hist_values)), forecast_data$f_lower)
+    all_upper <- c(rep(NA, length(forecast_data$hist_values)), forecast_data$f_upper)
+    
+    chart_data <- data.frame(
+      year = all_years,
+      value = all_values,
+      lower = all_lower,
+      upper = all_upper
+    )
+    
+    chart_data %>%
+      e_charts(year) %>%
+      e_line(value, 
+             name = "Historical & Forecast",
+             lineStyle = list(color = "#0B78A0", width = 3),
+             itemStyle = list(color = "#0B78A0"),
+             symbol = "circle",
+             symbolSize = 8) %>%
+      e_area_(c("lower", "upper"),
+              name = "95% Confidence Interval",
+              stack = "confidence",
+              itemStyle = list(color = "rgba(2, 132, 199, 0.2)"),
+              lineStyle = list(opacity = 0),
+              areaStyle = list(opacity = 0.3)) %>%
+      e_tooltip(trigger = "axis") %>%
+      e_x_axis(name = "Year", type = "category") %>%
+      e_y_axis(name = "Inflation Rate (%)", type = "value") %>%
+      e_legend(show = TRUE, top = "8%") %>%
+      e_title(
+        text = "Inflation Rate Forecast - Prophet ML Model",
+        left = "center",
+        top = "2%",
+        textStyle = list(fontSize = 18, fontWeight = "bold", color = "#0B78A0")
+      ) %>%
+      e_grid(left = "10%", right = "10%", bottom = "15%", top = "20%") %>%
+      e_datazoom(type = "slider", start = 0, end = 100)
+  })
+  
+  # Inflation ML Metrics
+  output$inflation_ml_metrics <- renderUI({
+    req(exists("Rwanda_inflation"))
+    df <- Rwanda_inflation
+    req(all(c("Year", "Annual averg-Inflation_Rate_Percent") %in% names(df)))
+    
+    df <- df %>%
+      mutate(Year = as.integer(Year),
+             Rate = as.numeric(`Annual averg-Inflation_Rate_Percent`)) %>%
+      arrange(Year)
+    
+    if("Year" %in% names(df)) names(df)[names(df) == "Year"] <- "year"
+    df$inflation_rate <- df$Rate
+    
+    forecast_data <- create_prophet_forecast(df, "inflation_rate", forecast_years = 5)
+    if(!is.null(forecast_data$error)) {
+      return(HTML(paste0("<p style='color:red;'>Error: ", forecast_data$error, "</p>")))
+    }
+    
+    m <- forecast_data$metrics
+    HTML(paste0(
+      "<div style='font-size:12px; line-height:1.8;'>",
+      "<strong>Model:</strong> Prophet ML<br><br>",
+      "<strong>Performance Metrics:</strong><br>",
+      "RMSE: ", sprintf("%.2f", m$rmse), "<br>",
+      "MAE: ", sprintf("%.2f", m$mae), "<br><br>",
+      "<strong>Diagnostics:</strong><br>",
+      "Std Dev: ", sprintf("%.2f", m$std_dev), "<br>",
+      "Variance: ", sprintf("%.2f", m$variance),
+      "</div>"
+    ))
+  })
+  
+  # Inflation ML Interpretation
+  output$inflation_ml_interpretation <- renderUI({
+    req(exists("Rwanda_inflation"))
+    df <- Rwanda_inflation
+    req(all(c("Year", "Annual averg-Inflation_Rate_Percent") %in% names(df)))
+    
+    df <- df %>%
+      mutate(Year = as.integer(Year),
+             Rate = as.numeric(`Annual averg-Inflation_Rate_Percent`)) %>%
+      arrange(Year)
+    
+    if("Year" %in% names(df)) names(df)[names(df) == "Year"] <- "year"
+    df$inflation_rate <- df$Rate
+    
+    forecast_data <- create_prophet_forecast(df, "inflation_rate", forecast_years = 5)
+    if(!is.null(forecast_data$error)) {
+      return(HTML(paste0("<p style='color:red;'>Error: ", forecast_data$error, "</p>")))
+    }
+    
+    next_year <- forecast_data$forecast_value
+    current_value <- forecast_data$current_value
+    lower_ci <- forecast_data$f_lower[1]
+    upper_ci <- forecast_data$f_upper[1]
+    change_pct <- forecast_data$change_pct
+    
+    interpretation <- sprintf(
+      "The Prophet ML model forecasts Rwanda's annual average inflation rate to be %.1f%% in 2025 (95%% CI: %.1f%% to %.1f%%). This represents a %.1f percentage point change from the current rate of %.1f%%. Prophet's ability to capture underlying trends and seasonality suggests %s.",
+      next_year, lower_ci, upper_ci, next_year - current_value, current_value,
+      if(next_year > current_value) "a potential increase in inflationary pressures" else "a moderation in inflation"
+    )
+    
+    HTML(paste0("<div style='font-size:13px; line-height:1.6; color:#475569;'>", interpretation, "</div>"))
+  })
+  
+  # Production ML Chart (Prophet) - echarts4r
+  output$production_ml_chart <- renderEcharts4r({
+    req(exists('Rwanda_production_output'), input$production_variable_ml)
+    df <- Rwanda_production_output
+    req(all(c('Year', input$production_variable_ml) %in% names(df)))
+    
+    df <- df %>%
+      mutate(Year = as.integer(Year),
+             Value = as.numeric(!!sym(input$production_variable_ml))) %>%
+      arrange(Year)
+    
+    if("Year" %in% names(df)) names(df)[names(df) == "Year"] <- "year"
+    
+    forecast_data <- create_prophet_forecast(df, "Value", forecast_years = 5)
+    
+    if(!is.null(forecast_data$error)) {
+      return(e_charts() %>% e_title(paste("Error:", forecast_data$error)))
+    }
+    
+    y_title <- switch(input$production_variable_ml,
+                      'Agricultural_Yield_Billion_USD' = 'Agricultural Yield (Billion USD)',
+                      'Industrial_Output_Billion_USD' = 'Industrial Output (Billion USD)',
+                      'Service_Output_Billion_USD' = 'Service Output (Billion USD)')
+    
+    # Combine historical and forecast data
+    all_years <- c(forecast_data$hist_years, forecast_data$f_years)
+    all_values <- c(forecast_data$hist_values, forecast_data$f_mean)
+    all_lower <- c(rep(NA, length(forecast_data$hist_values)), forecast_data$f_lower)
+    all_upper <- c(rep(NA, length(forecast_data$hist_values)), forecast_data$f_upper)
+    
+    chart_data <- data.frame(
+      year = all_years,
+      value = all_values,
+      lower = all_lower,
+      upper = all_upper
+    )
+    
+    chart_data %>%
+      e_charts(year) %>%
+      e_line(value, 
+             name = "Historical & Forecast",
+             lineStyle = list(color = "#0B78A0", width = 3),
+             itemStyle = list(color = "#0B78A0"),
+             symbol = "circle",
+             symbolSize = 8) %>%
+      e_area_(c("lower", "upper"),
+              name = "95% Confidence Interval",
+              stack = "confidence",
+              itemStyle = list(color = "rgba(2, 132, 199, 0.2)"),
+              lineStyle = list(opacity = 0),
+              areaStyle = list(opacity = 0.3)) %>%
+      e_tooltip(trigger = "axis") %>%
+      e_x_axis(name = "Year", type = "category") %>%
+      e_y_axis(name = y_title, type = "value") %>%
+      e_legend(show = TRUE, top = "8%") %>%
+      e_title(
+        text = paste(y_title, "- Prophet ML Model"),
+        left = "center",
+        top = "2%",
+        textStyle = list(fontSize = 18, fontWeight = "bold", color = "#0B78A0")
+      ) %>%
+      e_grid(left = "10%", right = "10%", bottom = "15%", top = "20%") %>%
+      e_datazoom(type = "slider", start = 0, end = 100)
+  })
+  
+  # Production ML Metrics
+  output$production_ml_metrics <- renderUI({
+    req(exists('Rwanda_production_output'), input$production_variable_ml)
+    df <- Rwanda_production_output
+    req(all(c('Year', input$production_variable_ml) %in% names(df)))
+    
+    df <- df %>%
+      mutate(Year = as.integer(Year),
+             Value = as.numeric(!!sym(input$production_variable_ml))) %>%
+      arrange(Year)
+    
+    if("Year" %in% names(df)) names(df)[names(df) == "Year"] <- "year"
+    
+    forecast_data <- create_prophet_forecast(df, "Value", forecast_years = 5)
+    if(!is.null(forecast_data$error)) {
+      return(HTML(paste0("<p style='color:red;'>Error: ", forecast_data$error, "</p>")))
+    }
+    
+    m <- forecast_data$metrics
+    HTML(paste0(
+      "<div style='font-size:12px; line-height:1.8;'>",
+      "<strong>Model:</strong> Prophet ML<br><br>",
+      "<strong>Performance Metrics:</strong><br>",
+      "RMSE: ", sprintf("%.2f", m$rmse), "<br>",
+      "MAE: ", sprintf("%.2f", m$mae), "<br><br>",
+      "<strong>Diagnostics:</strong><br>",
+      "Std Dev: ", sprintf("%.2f", m$std_dev), "<br>",
+      "Variance: ", sprintf("%.2f", m$variance),
+      "</div>"
+    ))
+  })
+  
+  # Production ML Interpretation
+  output$production_ml_interpretation <- renderUI({
+    req(exists('Rwanda_production_output'), input$production_variable_ml)
+    df <- Rwanda_production_output
+    req(all(c('Year', input$production_variable_ml) %in% names(df)))
+    
+    df <- df %>%
+      mutate(Year = as.integer(Year),
+             Value = as.numeric(!!sym(input$production_variable_ml))) %>%
+      arrange(Year)
+    
+    if("Year" %in% names(df)) names(df)[names(df) == "Year"] <- "year"
+    
+    forecast_data <- create_prophet_forecast(df, "Value", forecast_years = 5)
+    if(!is.null(forecast_data$error)) {
+      return(HTML(paste0("<p style='color:red;'>Error: ", forecast_data$error, "</p>")))
+    }
+    
+    next_year <- forecast_data$forecast_value
+    current_value <- forecast_data$current_value
+    lower_ci <- forecast_data$f_lower[1]
+    upper_ci <- forecast_data$f_upper[1]
+    yoy_change <- forecast_data$change_pct
+    
+    y_title <- switch(input$production_variable_ml,
+                      'Agricultural_Yield_Billion_USD' = 'Agricultural Yield',
+                      'Industrial_Output_Billion_USD' = 'Industrial Output',
+                      'Service_Output_Billion_USD' = 'Service Output')
+    
+    interpretation <- sprintf(
+      "The Prophet ML model forecasts Rwanda's %s to be %.1f Billion USD in 2025 (95%% CI: %.1f to %.1f Billion USD). This is a %.1f%% change from the current %.1f Billion USD. Prophet's trend and seasonality analysis suggests %s.",
+      y_title, next_year, lower_ci, upper_ci, yoy_change, current_value,
+      if(next_year > current_value) "a positive outlook for production" else "a potential slowdown in production"
+    )
+    
+    HTML(paste0("<div style='font-size:13px; line-height:1.6; color:#475569;'>", interpretation, "</div>"))
+  })
+  
+  # Function to fit selected inflation model (ARIMA)
   inflation_model <- reactive({
     # Get and validate time series data
     ts_data <- req(inflation_ts_data())
@@ -3114,20 +4080,21 @@ server <- function(input, output, session) {
     
     tryCatch({
       # Fit model based on selection
-      if(input$inflation_model == "arima111") {
+      if(input$inflation_model_arima == "arima111") {
         Arima(ts_data, order=c(1,1,1))
-      } else {
+      } else if(input$inflation_model_arima == "arima212") {
         Arima(ts_data, order=c(2,1,2))
+      } else {
+        auto.arima(ts_data)
       }
     }, error = function(e) {
       validate(need(FALSE, paste("Error fitting model:", e$message)))
     })
   })
 
-  # Inflation Forecast Plot
+  # Inflation Forecast Plot (ARIMA)
   output$inflation_forecast_plot <- renderPlotly({
-    # Use the loaded Rwanda_inflation data frame and ensure required cols exist
-    req(exists("Rwanda_inflation"))
+    req(exists("Rwanda_inflation"), input$inflation_model_arima)
     df <- Rwanda_inflation
     req(all(c("Year", "Annual averg-Inflation_Rate_Percent") %in% names(df)))
 
@@ -3135,15 +4102,19 @@ server <- function(input, output, session) {
       mutate(Year = as.integer(Year),
              Rate = as.numeric(`Annual averg-Inflation_Rate_Percent`)) %>%
       arrange(Year)
+    
+    # Normalize column names
+    names(df)[names(df) == "Year"] <- "year"
+    df$inflation_rate <- df$Rate
 
     # Build time series
     ts_data <- ts(df$Rate, start = min(df$Year), frequency = 1)
 
-    # Select model
+    # Select ARIMA model
     model <- tryCatch({
-      if (isTruthy(input$inflation_model) && input$inflation_model == 'arima111') {
+      if (input$inflation_model_arima == 'arima111') {
         Arima(ts_data, order = c(1,1,1))
-      } else if (isTruthy(input$inflation_model) && input$inflation_model == 'arima212') {
+      } else if (input$inflation_model_arima == 'arima212') {
         Arima(ts_data, order = c(2,1,2))
       } else {
         auto.arima(ts_data)
@@ -3152,44 +4123,47 @@ server <- function(input, output, session) {
       validate(need(FALSE, paste('ARIMA fit error:', e$message)))
     })
 
-    # Forecast (5-year horizon to match other charts)
+    # Forecast (5-year horizon)
     h <- 5
     fcast <- forecast(model, h = h)
-
+    
     hist_years <- df$Year
     hist_values <- df$Rate
     max_year <- max(hist_years)
     f_years <- seq(max_year + 1, max_year + h)
+    f_mean <- as.numeric(fcast$mean)
+    f_lower <- as.numeric(fcast$lower[,'95%'])
+    f_upper <- as.numeric(fcast$upper[,'95%'])
+    model_display <- ifelse(input$inflation_model_arima == 'arima111', 'ARIMA(1,1,1)',
+                           ifelse(input$inflation_model_arima == 'arima212', 'ARIMA(2,1,2)', 'Auto ARIMA'))
 
     # Plot historical, forecast and CI
     p <- plot_ly() %>%
       add_lines(x = hist_years, y = hist_values, name = 'Historical', line = list(color = '#0B78A0', width = 2)) %>%
-      add_lines(x = f_years, y = as.numeric(fcast$mean), name = 'Forecast', line = list(color = '#157A4A', width = 2, dash = 'dash')) %>%
+      add_lines(x = f_years, y = f_mean, name = 'Forecast', line = list(color = '#0284c7', width = 2, dash = 'dash')) %>%
       add_ribbons(x = f_years,
-                  ymin = as.numeric(fcast$lower[,'95%']),
-                  ymax = as.numeric(fcast$upper[,'95%']),
-                  name = '95% CI', fillcolor = 'rgba(21,122,74,0.15)', line = list(color = 'transparent')) %>%
+                  ymin = f_lower,
+                  ymax = f_upper,
+                  name = '95% CI', fillcolor = 'rgba(2, 132, 199, 0.2)', line = list(color = 'transparent')) %>%
       layout(
-        title = list(text = paste('Inflation Rate Forecast -',
-                                  ifelse(input$inflation_model == 'arima111', 'ARIMA(1,1,1)',
-                                         ifelse(input$inflation_model == 'arima212', 'ARIMA(2,1,2)', 'Auto ARIMA'))),
+        title = list(text = paste('Inflation Rate Forecast -', model_display),
                      font = list(size = 18, color = '#0B78A0')),
         xaxis = list(title = 'Year', tickmode = 'linear', dtick = 1, range = c(min(hist_years), max(f_years))),
-        yaxis = list(title = 'Annual averg-Inflation_Rate_Percent', tickformat = '.1f'),
+        yaxis = list(title = 'Annual Inflation Rate (%)', tickformat = '.1f'),
         hovermode = 'x unified', showlegend = TRUE
       )
 
     p
   })
   
-  # Production Output Forecast Plot
+  # Production Output Forecast Plot (ARIMA)
   output$production_forecast_plot <- renderPlotly({
     req(exists('Rwanda_production_output'))
     df <- Rwanda_production_output
     req(all(c('Year', 'Agricultural_Yield_Billion_USD','Industrial_Output_Billion_USD','Service_Output_Billion_USD') %in% names(df)))
 
-    var_col <- req(input$production_variable)
-    model_choice <- req(input$production_model)
+    var_col <- req(input$production_variable_arima)
+    model_choice <- req(input$production_model_arima)
 
     df2 <- df %>%
       mutate(Year = as.integer(Year),
@@ -3439,7 +4413,8 @@ server <- function(input, output, session) {
   output$production_model_metrics <- renderPrint({
     req(exists('Rwanda_production_output'))
     df <- Rwanda_production_output
-    var_col <- req(input$production_variable)
+    var_col <- req(input$production_variable_arima)
+    model_choice <- req(input$production_model_arima)
     df2 <- df %>% mutate(Value = as.numeric(.data[[var_col]]))
     ts_data <- ts(df2$Value, start = min(df$Year), frequency = 1)
     model_choice <- req(input$production_model)
@@ -3469,8 +4444,8 @@ server <- function(input, output, session) {
   output$production_interpretation <- renderText({
     req(exists('Rwanda_production_output'))
     df <- Rwanda_production_output
-    var_col <- req(input$production_variable)
-    model_choice <- req(input$production_model)
+    var_col <- req(input$production_variable_arima)
+    model_choice <- req(input$production_model_arima)
     df2 <- df %>% mutate(Value = as.numeric(.data[[var_col]]))
     ts_data <- ts(df2$Value, start = min(df$Year), frequency = 1)
     model <- tryCatch({
@@ -3547,6 +4522,176 @@ server <- function(input, output, session) {
 
   # Render other charts...
   # Animated trend charts
+  # Cache for sector performance data (static - no need to recompute)
+  sector_perf_cache <- reactiveVal(NULL)
+  
+  # Pre-compute sector performance data once
+  get_sector_perf_data <- function() {
+    cached <- sector_perf_cache()
+    if (!is.null(cached)) return(cached)
+    
+    perf_data <- data.frame(
+      sector = c("Governance & Security", "Economic Development", "Tourism"),
+      value = c(88, 85, 78),
+      color = c("#0B78A0", "#0284c7", "#0ea5e9"),
+      stringsAsFactors = FALSE
+    )
+    
+    dev_data <- data.frame(
+      sector = c("Education", "Demographics & Agriculture", "Health"),
+      value = c(72, 71, 68),
+      color = c("#0284c7", "#0ea5e9", "#94a3b8"),
+      stringsAsFactors = FALSE
+    )
+    
+    sector_perf_cache(list(high = perf_data, developing = dev_data))
+    return(list(high = perf_data, developing = dev_data))
+  }
+  
+  # High Performing Sectors Donut Chart (optimized with caching)
+  output$high_perf_donut <- renderEcharts4r({
+    # Use cached data
+    perf_data <- get_sector_perf_data()$high
+    
+    perf_data %>%
+      e_charts(sector) %>%
+      e_pie(value, 
+            radius = c("45%", "70%"),
+            center = c("50%", "55%"),
+            itemStyle = list(
+              borderRadius = 8,
+              borderColor = "#ffffff",
+              borderWidth = 3
+            ),
+            label = list(
+              show = TRUE,
+              formatter = htmlwidgets::JS("
+                function(params) {
+                  return params.name + '\\n' + params.value + '%';
+                }
+              "),
+              fontSize = 13,
+              fontWeight = "bold",
+              color = "#0f172a"
+            ),
+            labelLine = list(
+              show = TRUE,
+              length = 15,
+              length2 = 10
+            ),
+            emphasis = list(
+              itemStyle = list(
+                shadowBlur = 20,
+                shadowOffsetX = 0,
+                shadowColor = "rgba(11,120,160,0.5)"
+              ),
+              label = list(
+                fontSize = 15,
+                fontWeight = "bold"
+              )
+            )
+      ) %>%
+      e_color(color = perf_data$color) %>%
+      e_tooltip(
+        trigger = "item",
+        formatter = htmlwidgets::JS("
+          function(params) {
+            return '<strong>' + params.name + '</strong><br/>' +
+                   'Performance Score: <strong>' + params.value + '%</strong><br/>' +
+                   'Share: ' + params.percent + '%';
+          }
+        ")
+      ) %>%
+      e_legend(
+        show = FALSE
+      ) %>%
+      e_title(
+        text = "",
+        left = "center",
+        top = "5%",
+        textStyle = list(
+          fontSize = 16,
+          fontWeight = "bold",
+          color = "#0B78A0"
+        )
+      )
+  })
+  
+  # Suspend donut charts when hidden (performance optimization)
+  outputOptions(output, "high_perf_donut", suspendWhenHidden = TRUE)
+  
+  # Developing Sectors Donut Chart (optimized with caching)
+  output$developing_perf_donut <- renderEcharts4r({
+    # Use cached data
+    dev_data <- get_sector_perf_data()$developing
+    
+    dev_data %>%
+      e_charts(sector) %>%
+      e_pie(value, 
+            radius = c("45%", "70%"),
+            center = c("50%", "55%"),
+            itemStyle = list(
+              borderRadius = 8,
+              borderColor = "#ffffff",
+              borderWidth = 3
+            ),
+            label = list(
+              show = TRUE,
+              formatter = htmlwidgets::JS("
+                function(params) {
+                  return params.name + '\\n' + params.value + '%';
+                }
+              "),
+              fontSize = 13,
+              fontWeight = "bold",
+              color = "#0f172a"
+            ),
+            labelLine = list(
+              show = TRUE,
+              length = 15,
+              length2 = 10
+            ),
+            emphasis = list(
+              itemStyle = list(
+                shadowBlur = 20,
+                shadowOffsetX = 0,
+                shadowColor = "rgba(11,120,160,0.5)"
+              ),
+              label = list(
+                fontSize = 15,
+                fontWeight = "bold"
+              )
+            )
+      ) %>%
+      e_color(color = dev_data$color) %>%
+      e_tooltip(
+        trigger = "item",
+        formatter = htmlwidgets::JS("
+          function(params) {
+            return '<strong>' + params.name + '</strong><br/>' +
+                   'Performance Score: <strong>' + params.value + '%</strong><br/>' +
+                   'Share: ' + params.percent + '%';
+          }
+        ")
+      ) %>%
+      e_legend(
+        show = FALSE
+      ) %>%
+      e_title(
+        text = "",
+        left = "center",
+        top = "5%",
+        textStyle = list(
+          fontSize = 16,
+          fontWeight = "bold",
+          color = "#0B78A0"
+        )
+      )
+  })
+  
+  # Suspend developing donut chart when hidden (performance optimization)
+  outputOptions(output, "developing_perf_donut", suspendWhenHidden = TRUE)
+  
   output$gdp_trend <- renderPlotly({
     plot_ly(data = gdp_data, x = ~Year, y = ~Value) %>%
       add_trace(
@@ -3556,10 +4701,10 @@ server <- function(input, output, session) {
           shape = 'spline',
           smoothing = 1.3,
           width = 3,
-          color = '#157A4A'
+          color = '#0284c7'
         ),
         marker = list(
-          color = '#157A4A',
+          color = '#0284c7',
           size = 8,
           symbol = 'circle',
           line = list(color = '#fff', width = 2)
@@ -3669,10 +4814,10 @@ server <- function(input, output, session) {
           shape = 'spline',
           smoothing = 1.3,
           width = 3,
-          color = '#157A4A'
+          color = '#0284c7'
         ),
         marker = list(
-          color = '#157A4A',
+          color = '#0284c7',
           size = 8,
           symbol = 'circle',
           line = list(color = '#fff', width = 2)
@@ -3725,7 +4870,7 @@ server <- function(input, output, session) {
   # Life expectancy mini chart (used in modal)
   output$life_exp_trend <- renderPlotly({
     plot_ly(data = life_exp_data, x = ~Year, y = ~Value) %>%
-      add_trace(type = 'scatter', mode = 'lines+markers', line = list(color = '#157A4A', width = 3), marker = list(size = 6, color = '#157A4A')) %>%
+      add_trace(type = 'scatter', mode = 'lines+markers', line = list(color = '#0284c7', width = 3), marker = list(size = 6, color = '#0284c7')) %>%
       layout(showlegend = FALSE, xaxis = list(title = ''), yaxis = list(title = 'Years'), plot_bgcolor = 'transparent', paper_bgcolor = 'transparent') %>%
       config(displayModeBar = FALSE)
   })
@@ -3771,15 +4916,15 @@ server <- function(input, output, session) {
     )
   }
   # Population Chart - Professional statistical visualization
-  output$dem_population_chart <- renderPlotly({
+  output$dem_population_chart <- renderEcharts4r({
     pop_data <- load_population_data()
     if (is.null(pop_data) || !is.data.frame(pop_data) || nrow(pop_data) == 0) {
-      return(plotly_empty() %>% layout(title = "No data available"))
+      return(e_charts() %>% e_title("No data available"))
     }
     
     # Ensure year column exists and is numeric
     if (!"year" %in% names(pop_data)) {
-      return(plotly_empty() %>% layout(title = "Invalid data structure"))
+      return(e_charts() %>% e_title("Invalid data structure"))
     }
     
     # Sort by year ascending
@@ -3794,70 +4939,156 @@ server <- function(input, output, session) {
     }
     
     # Create dual-axis chart: Population (bars) and Growth Rate (line)
-    p <- plot_ly(pop_data, x = ~year, hovermode = 'x unified') %>%
-      add_bars(
-        y = ~population_actual,
-        name = 'Population',
-        marker = list(
-          color = 'rgba(30, 64, 175, 0.8)',
-          line = list(color = 'rgba(30, 64, 175, 1.0)', width = 1.5)
+    pop_data %>%
+      e_charts(year) %>%
+      e_bar(population_actual,
+            name = "Population (Millions)",
+            itemStyle = list(
+              color = "#0B78A0",
+              borderRadius = c(4, 4, 0, 0)
+            ),
+            emphasis = list(
+              itemStyle = list(
+                color = "#0284c7",
+                shadowBlur = 15,
+                shadowColor = "rgba(2, 132, 199, 0.5)"
+              )
+            ),
+            label = list(
+              show = FALSE,
+              position = "top",
+              formatter = htmlwidgets::JS("function(params) { return (params.value / 1000000).toFixed(1) + 'M'; }")
+            )) %>%
+      e_line(population_growth_rate_percent,
+             name = "Growth Rate (%)",
+             y_index = 1,
+             lineStyle = list(color = "#0284c7", width = 4),
+             itemStyle = list(color = "#0284c7"),
+             symbol = "circle",
+             symbolSize = 10,
+             smooth = TRUE,
+             emphasis = list(
+               focus = "series",
+               lineStyle = list(width = 5)
+             ),
+             label = list(
+               show = TRUE,
+               position = "top",
+               formatter = htmlwidgets::JS("function(params) { return params.value.toFixed(2) + '%'; }"),
+               fontSize = 11,
+               fontWeight = "bold",
+               color = "#0284c7"
+             )) %>%
+      e_y_axis(
+        name = "Population (Millions)",
+        nameLocation = "middle",
+        nameGap = 50,
+        nameTextStyle = list(fontSize = 14, fontWeight = "bold", color = "#0B78A0"),
+        type = "value",
+        index = 0,
+        axisLabel = list(
+          formatter = htmlwidgets::JS("function(value) { return (value / 1000000).toFixed(1) + 'M'; }"),
+          fontSize = 11,
+          color = "#64748b"
         ),
-        hovertemplate = '<b>Year:</b> %{x}<br><b>Population:</b> %{y:,.0f}<extra></extra>'
+        splitLine = list(show = TRUE, lineStyle = list(color = "#e2e8f0", type = "dashed")),
+        axisLine = list(lineStyle = list(color = "#0B78A0", width = 2))
       ) %>%
-      add_trace(
-        y = ~population_growth_rate_percent,
-        name = 'Growth Rate (%)',
-        type = 'scatter',
-        mode = 'lines+markers',
-        line = list(color = '#0ea5e9', width = 3),
-        marker = list(size = 8, color = '#0ea5e9'),
-        yaxis = 'y2',
-        hovertemplate = '<b>Year:</b> %{x}<br><b>Growth Rate:</b> %{y:.2f}%<extra></extra>'
+      e_y_axis(
+        name = "Growth Rate (%)",
+        nameLocation = "middle",
+        nameGap = 50,
+        nameTextStyle = list(fontSize = 14, fontWeight = "bold", color = "#0284c7"),
+        type = "value",
+        index = 1,
+        axisLabel = list(
+          formatter = htmlwidgets::JS("function(value) { return value.toFixed(2) + '%'; }"),
+          fontSize = 11,
+          color = "#64748b"
+        ),
+        splitLine = list(show = FALSE),
+        axisLine = list(lineStyle = list(color = "#0284c7", width = 2))
       ) %>%
-      layout(
-        title = list(
-          text = 'Rwanda Population Trends (2010-2024)',
-          font = list(size = 20, color = '#1e40af', family = 'Arial, sans-serif')
-        ),
-        xaxis = list(
-          title = list(text = 'Year', font = list(size = 14, color = '#475569')),
-          showgrid = TRUE,
-          gridcolor = 'rgba(0,0,0,0.1)',
-          tickmode = 'linear',
-          dtick = 1
-        ),
-        yaxis = list(
-          title = list(text = 'Population', font = list(size = 14, color = '#475569')),
-          rangemode = 'tozero',
-          showgrid = TRUE,
-          gridcolor = 'rgba(0,0,0,0.1)',
-          tickformat = ',.0f'
-        ),
-        yaxis2 = list(
-          title = list(text = 'Growth Rate (%)', font = list(size = 14, color = '#0ea5e9')),
-          overlaying = 'y',
-          side = 'right',
-          showgrid = FALSE
-        ),
-        legend = list(
-          orientation = 'h',
-          x = 0.5,
-          xanchor = 'center',
-          y = 1.15,
-          font = list(size = 12)
-        ),
-        plot_bgcolor = '#ffffff',
-        paper_bgcolor = '#ffffff',
-        margin = list(t = 80, r = 80, b = 60, l = 80),
-        hoverlabel = list(
-          bgcolor = 'rgba(255,255,255,0.95)',
-          bordercolor = '#1e40af',
-          font = list(size = 12, color = '#1e40af')
-        )
+      e_tooltip(
+        trigger = "axis",
+        backgroundColor = "rgba(255, 255, 255, 0.98)",
+        borderColor = "#0B78A0",
+        borderWidth = 2,
+        textStyle = list(color = "#042A3B", fontSize = 13),
+        formatter = htmlwidgets::JS("
+          function(params) {
+            var result = '<div style=\"padding: 8px; font-weight: bold; font-size: 14px; color: #042A3B; border-bottom: 2px solid #0B78A0; margin-bottom: 8px;\">Year: ' + params[0].axisValue + '</div>';
+            params.forEach(function(item) {
+              if(item.seriesName === 'Population (Millions)') {
+                var popM = (item.value / 1000000).toFixed(2);
+                var popFull = item.value.toLocaleString('en-US');
+                result += '<div style=\"padding: 4px 0; display: flex; justify-content: space-between; align-items: center;\">';
+                result += '<span style=\"color: #0B78A0; font-weight: 600;\">📊 Population:</span>';
+                result += '<span style=\"font-weight: 700; color: #042A3B; margin-left: 12px;\">' + popM + ' Million</span>';
+                result += '</div>';
+                result += '<div style=\"padding: 2px 0; font-size: 11px; color: #64748b;\">(' + popFull + ' people)</div>';
+              } else if(item.seriesName === 'Growth Rate (%)') {
+                result += '<div style=\"padding: 4px 0; display: flex; justify-content: space-between; align-items: center; margin-top: 8px; border-top: 1px solid #e2e8f0; padding-top: 8px;\">';
+                result += '<span style=\"color: #0284c7; font-weight: 600;\">📈 Growth Rate:</span>';
+                result += '<span style=\"font-weight: 700; color: #0284c7; margin-left: 12px;\">' + item.value.toFixed(2) + '%</span>';
+                result += '</div>';
+              }
+            });
+            return result;
+          }
+        ")
       ) %>%
-      config(displayModeBar = TRUE, displaylogo = FALSE)
-    
-    return(p)
+      e_x_axis(
+        name = "Year",
+        nameLocation = "middle",
+        nameGap = 30,
+        nameTextStyle = list(fontSize = 14, fontWeight = "bold", color = "#042A3B"),
+        type = "category",
+        axisLabel = list(fontSize = 11, color = "#64748b", rotate = 0),
+        axisLine = list(lineStyle = list(color = "#64748b", width = 2)),
+        splitLine = list(show = FALSE)
+      ) %>%
+      e_legend(
+        show = TRUE,
+        top = "5%",
+        itemGap = 20,
+        textStyle = list(fontSize = 13, fontWeight = "600", color = "#042A3B"),
+        icon = "roundRect"
+      ) %>%
+      e_title(
+        text = "Rwanda Population Trends (2010-2024)",
+        subtext = "Population in Millions | Growth Rate in Percentage",
+        left = "center",
+        top = "1%",
+        textStyle = list(fontSize = 20, fontWeight = "bold", color = "#042A3B"),
+        subtextStyle = list(fontSize = 12, color = "#64748b", margin = list(top = 8))
+      ) %>%
+      e_grid(left = "12%", right = "12%", bottom = "18%", top = "18%") %>%
+      e_datazoom(
+        type = "slider",
+        start = 0,
+        end = 100,
+        height = 30,
+        handleStyle = list(color = "#0B78A0"),
+        dataBackground = list(areaStyle = list(color = "rgba(11, 120, 160, 0.1)")),
+        selectedDataBackground = list(areaStyle = list(color = "rgba(11, 120, 160, 0.3)"))
+      ) %>%
+      e_mark_point(
+        data = list(list(type = "max", name = "Peak Population", coord = NULL)),
+        seriesIndex = 0,
+        itemStyle = list(color = "#0B78A0"),
+        label = list(formatter = "Peak: {c}", fontSize = 11, fontWeight = "bold")
+      ) %>%
+      e_mark_line(
+        data = list(type = "average", name = "Average Growth"),
+        seriesIndex = 1,
+        lineStyle = list(color = "#0284c7", type = "dashed", width = 2),
+        label = list(formatter = "Avg: {c}%", fontSize = 11, fontWeight = "bold", position = "end")
+      ) %>%
+      e_brush(
+        type = "rectX",
+        brushStyle = list(borderWidth = 1, color = "rgba(11, 120, 160, 0.2)", borderColor = "#0B78A0")
+      )
   })
   
   # Helper function to load agriculture data from CSV
@@ -3871,7 +5102,7 @@ server <- function(input, output, session) {
     } else {
       # Try to load from file if not in global environment
       tryCatch({
-        agri_data <- read.csv("data/datasets/rwanda_agriculture yields crops_ to GDP.csv")
+        agri_data <- read.csv(ndip_dataset_path("rwanda_agriculture yields crops_ to GDP.csv"))
         message("[AGRICULTURE] ✅ Loaded from CSV file")
       }, error = function(e) {
         message(sprintf("[AGRICULTURE] ❌ Could not load CSV: %s", e$message))
@@ -3892,7 +5123,7 @@ server <- function(input, output, session) {
     } else {
       # Try to load from file if not in global environment
       tryCatch({
-        labor_data <- read.csv("data/datasets/Rwanda_Labour_Force.csv")
+        labor_data <- read.csv(ndip_dataset_path("Rwanda_Labour_Force.csv"))
         message("[LABOR FORCE] ✅ Loaded from CSV file")
       }, error = function(e) {
         message(sprintf("[LABOR FORCE] ❌ Could not load CSV: %s", e$message))
@@ -3906,92 +5137,8 @@ server <- function(input, output, session) {
   load_population_data <- function() {
     pop_data <- NULL
     
-    # Try database first
-    tryCatch({
-      conn <- get_neon_connection()
-      on.exit({
-        if (!is.null(conn) && dbIsValid(conn)) {
-          dbDisconnect(conn)
-        }
-      }, add = TRUE)
-      
-      # First, try to find the table and get column names
-      schema_variations <- c(
-        '"demographic & agriculture"',
-        'demographic_agriculture',
-        'demographic',
-        '"demographics & agriculture"',
-        'demographics',
-        'public'
-      )
-      
-      found_table <- FALSE
-      for (schema_name in schema_variations) {
-        tryCatch({
-          # First check if table exists and get column names
-          if (grepl('"', schema_name)) {
-            check_query <- sprintf('SELECT column_name FROM information_schema.columns WHERE table_schema = %s AND table_name = \'rwanda_population\'', schema_name)
-          } else {
-            check_query <- sprintf('SELECT column_name FROM information_schema.columns WHERE table_schema = \'%s\' AND table_name = \'rwanda_population\'', schema_name)
-          }
-          
-          cols <- dbGetQuery(conn, check_query)
-          if (!is.null(cols) && nrow(cols) > 0) {
-            # Found the table! Get the actual column names
-            col_names <- cols$column_name
-            message(sprintf("[POPULATION] ✅ Found table in schema: %s", schema_name))
-            message(sprintf("[POPULATION] Columns: %s", paste(col_names, collapse=", ")))
-            
-            # Find the growth rate column (might be truncated)
-            growth_col <- col_names[grepl('growth|rate', col_names, ignore.case = TRUE)][1]
-            if (is.na(growth_col)) growth_col <- NULL
-            
-            # Build query with actual column names
-            if (!is.null(growth_col)) {
-              query <- sprintf('SELECT year, population_millions, "%s" as population_growth_rate_percent FROM %s.rwanda_population ORDER BY year DESC', growth_col, schema_name)
-            } else {
-              query <- sprintf('SELECT year, population_millions FROM %s.rwanda_population ORDER BY year DESC', schema_name)
-            }
-            
-            pop_data <- dbGetQuery(conn, query)
-            if (!is.null(pop_data) && nrow(pop_data) > 0) {
-              found_table <- TRUE
-              message(sprintf("[POPULATION] ✅ Loaded %d rows from database", nrow(pop_data)))
-              break
-            }
-          }
-        }, error = function(e) {
-          # Schema doesn't exist or table not found, continue
-        })
-      }
-      
-      # Try without schema (public schema or no schema)
-      if (!found_table) {
-        tryCatch({
-          # Get column names first
-          cols <- dbGetQuery(conn, "SELECT column_name FROM information_schema.columns WHERE table_name = 'rwanda_population' LIMIT 10")
-          if (!is.null(cols) && nrow(cols) > 0) {
-            col_names <- cols$column_name
-            growth_col <- col_names[grepl('growth|rate', col_names, ignore.case = TRUE)][1]
-            
-            if (!is.null(growth_col) && !is.na(growth_col)) {
-              query <- sprintf('SELECT year, population_millions, "%s" as population_growth_rate_percent FROM rwanda_population ORDER BY year DESC', growth_col)
-            } else {
-              query <- "SELECT year, population_millions FROM rwanda_population ORDER BY year DESC"
-            }
-            
-            pop_data <- dbGetQuery(conn, query)
-            if (!is.null(pop_data) && nrow(pop_data) > 0) {
-              message("[POPULATION] ✅ Loaded without schema")
-            }
-          }
-        }, error = function(e) {
-          message(sprintf("[POPULATION] Direct query failed: %s", e$message))
-        })
-      }
-    }, error = function(e) {
-      message(sprintf("[POPULATION] Database connection failed: %s", e$message))
-    })
+    # PERFORMANCE: Skip DB/schema probing here (it adds seconds to initial dashboard load).
+    # Population is served from the bundled CSV/in-memory dataset for instant rendering.
     
     # Fallback to CSV if database fails
     if (is.null(pop_data) || nrow(pop_data) == 0) {
@@ -4055,8 +5202,39 @@ server <- function(input, output, session) {
   
   # Demographics Overview Stat Cards
   # Population Current
-  output$dem_pop_current <- renderUI({
+  # Cache for demographics overview data (performance optimization)
+  demographics_overview_cache <- reactiveVal(NULL)
+  demographics_cache_time <- reactiveVal(as.POSIXct(0, origin = "1970-01-01", tz = "UTC"))
+  DEMOGRAPHICS_CACHE_TTL <- 300  # 5 minutes
+  
+  # Pre-compute demographics overview data
+  get_demographics_overview_data <- function(force_refresh = FALSE) {
+    now <- Sys.time()
+    cached <- demographics_overview_cache()
+    
+    if (!force_refresh && !is.null(cached) && 
+        as.numeric(difftime(now, demographics_cache_time(), units = "secs")) < DEMOGRAPHICS_CACHE_TTL) {
+      return(cached)
+    }
+    
+    # Load and compute all overview data once
     pop_data <- load_population_data()
+    land_data <- load_land_use_data()
+    
+    overview_data <- list(
+      pop_data = pop_data,
+      land_data = land_data,
+      timestamp = now
+    )
+    
+    demographics_overview_cache(overview_data)
+    demographics_cache_time(now)
+    return(overview_data)
+  }
+  
+  output$dem_pop_current <- renderUI({
+    overview <- get_demographics_overview_data()
+    pop_data <- overview$pop_data
     if (is.null(pop_data) || nrow(pop_data) == 0) return(tags$span('N/A'))
     
     # Normalize column names
@@ -4095,7 +5273,8 @@ server <- function(input, output, session) {
   })
   
   output$dem_pop_change_pct <- renderText({
-    pop_data <- load_population_data()
+    overview <- get_demographics_overview_data()
+    pop_data <- overview$pop_data
     if (is.null(pop_data) || nrow(pop_data) < 2) return('N/A')
     
     # Normalize column names
@@ -4141,7 +5320,8 @@ server <- function(input, output, session) {
   })
   
   output$dem_pop_label <- renderText({
-    pop_data <- load_population_data()
+    overview <- get_demographics_overview_data()
+    pop_data <- overview$pop_data
     if (is.null(pop_data) || nrow(pop_data) == 0) return('Data unavailable')
     
     # Normalize column names
@@ -4160,7 +5340,8 @@ server <- function(input, output, session) {
   
   # Agricultural Land Use Percentage
   output$dem_agri_percent <- renderUI({
-    land_data <- load_land_use_data()
+    overview <- get_demographics_overview_data()
+    land_data <- overview$land_data
     if (is.null(land_data) || !is.data.frame(land_data) || nrow(land_data) == 0) return(tags$span('N/A'))
     
     df <- as.data.frame(land_data)
@@ -4330,7 +5511,8 @@ server <- function(input, output, session) {
   })
   
   output$dem_agri_change_pct <- renderText({
-    land_data <- load_land_use_data()
+    overview <- get_demographics_overview_data()
+    land_data <- overview$land_data
     if (is.null(land_data) || !is.data.frame(land_data) || nrow(land_data) < 2) return('N/A')
     
     df <- as.data.frame(land_data)
@@ -4361,7 +5543,8 @@ server <- function(input, output, session) {
   })
   
   output$dem_agri_label <- renderText({
-    land_data <- load_land_use_data()
+    overview <- get_demographics_overview_data()
+    land_data <- overview$land_data
     if (is.null(land_data) || !is.data.frame(land_data) || nrow(land_data) == 0) return('Data unavailable')
     
     df <- as.data.frame(land_data)
@@ -4577,17 +5760,17 @@ server <- function(input, output, session) {
 
   # Agriculture
   # Agriculture Chart - Professional statistical visualization with dropdown
-  output$dem_agriculture_chart <- renderPlotly({
+  output$dem_agriculture_chart <- renderEcharts4r({
     req(input$dem_agriculture_variable)
     
     agri_data <- load_agriculture_data()
     if (is.null(agri_data) || !is.data.frame(agri_data) || nrow(agri_data) == 0) {
-      return(plotly_empty() %>% layout(title = "No data available"))
+      return(e_charts() %>% e_title("No data available"))
     }
     
     # Ensure year column exists
     if (!"year" %in% names(agri_data) && !"Year" %in% names(agri_data)) {
-      return(plotly_empty() %>% layout(title = "Invalid data structure"))
+      return(e_charts() %>% e_title("Invalid data structure"))
     }
     
     # Normalize column names
@@ -4596,65 +5779,68 @@ server <- function(input, output, session) {
     # Sort by year
     agri_data <- agri_data[order(as.numeric(agri_data$year)), ]
     
-    # Find all crop columns (exclude year and non-numeric columns)
+    # Find all crop columns
     crop_cols <- names(agri_data)[sapply(agri_data, is.numeric) & names(agri_data) != "year"]
     
     if (length(crop_cols) == 0) {
-      return(plotly_empty() %>% layout(title = "No crop data found"))
+      return(e_charts() %>% e_title("No crop data found"))
     }
     
     # Get selected variable
     selected_var <- input$dem_agriculture_variable
     if (!selected_var %in% crop_cols) {
-      selected_var <- crop_cols[1]  # Default to first if selection invalid
+      selected_var <- crop_cols[1]
     }
     
     # Clean column name for display
     display_name <- gsub('_', ' ', gsub('_tonnes', '', selected_var))
     display_name <- tools::toTitleCase(display_name)
     
-    # Create single-line chart with selected crop
-    p <- plot_ly(agri_data, x = ~year, hovermode = 'x unified') %>%
-      add_trace(
-        y = ~get(selected_var),
-        name = display_name,
-        type = 'scatter',
-        mode = 'lines+markers',
-        line = list(color = '#1e40af', width = 3),
-        marker = list(size = 8, color = '#1e40af'),
-        hovertemplate = paste0('<b>', display_name, ':</b> %{y:,.0f} tonnes<extra></extra>')
-      ) %>%
-      layout(
-        title = list(
-          text = paste('Rwanda Agricultural Production -', display_name),
-          font = list(size = 20, color = '#1e40af', family = 'Arial, sans-serif')
-        ),
-        xaxis = list(
-          title = list(text = 'Year', font = list(size = 14, color = '#475569')),
-          showgrid = TRUE,
-          gridcolor = 'rgba(0,0,0,0.1)',
-          tickmode = 'linear',
-          dtick = 1
-        ),
-        yaxis = list(
-          title = list(text = 'Production (Tonnes)', font = list(size = 14, color = '#475569')),
-          rangemode = 'tozero',
-          showgrid = TRUE,
-          gridcolor = 'rgba(0,0,0,0.1)',
-          tickformat = ',.0f'
-        ),
-        plot_bgcolor = '#ffffff',
-        paper_bgcolor = '#ffffff',
-        margin = list(t = 80, r = 80, b = 60, l = 80),
-        hoverlabel = list(
-          bgcolor = 'rgba(255,255,255,0.95)',
-          bordercolor = '#1e40af',
-          font = list(size = 12, color = '#1e40af')
-        )
-      ) %>%
-      config(displayModeBar = TRUE, displaylogo = FALSE)
+    # Prepare data
+    agri_data$Year <- as.numeric(agri_data$year)
+    agri_data$Value <- as.numeric(agri_data[[selected_var]])
     
-    return(p)
+    agri_data %>%
+      e_charts(Year) %>%
+      e_line(Value,
+             name = display_name,
+             lineStyle = list(color = "#0B78A0", width = 3),
+             itemStyle = list(color = "#0B78A0"),
+             symbol = "circle",
+             symbolSize = 8,
+             smooth = TRUE) %>%
+      e_area(Value,
+             name = "Production Area",
+             itemStyle = list(color = "rgba(11, 120, 160, 0.2)"),
+             lineStyle = list(opacity = 0)) %>%
+      e_tooltip(
+        trigger = "axis",
+        formatter = htmlwidgets::JS(paste0("
+          function(params) {
+            var result = '<b>Year: ' + params[0].axisValue + '</b><br/>';
+            params.forEach(function(item) {
+              if(item.seriesName === '", display_name, "') {
+                result += '", display_name, ": ' + item.value.toLocaleString('en-US') + ' tonnes';
+              }
+            });
+            return result;
+          }
+        "))
+      ) %>%
+      e_x_axis(name = "Year", type = "category") %>%
+      e_y_axis(name = "Production (Tonnes)", type = "value",
+               axisLabel = list(formatter = htmlwidgets::JS("function(value) { return value.toLocaleString('en-US'); }"))) %>%
+      e_legend(show = FALSE) %>%
+      e_title(
+        text = paste("Rwanda Agricultural Production —", display_name),
+        left = "center",
+        top = "2%",
+        textStyle = list(fontSize = 18, fontWeight = "bold", color = "#042A3B")
+      ) %>%
+      e_grid(left = "10%", right = "10%", bottom = "15%", top = "15%") %>%
+      e_datazoom(type = "slider", start = 0, end = 100) %>%
+      e_mark_point(data = list(type = "max", name = "Peak")) %>%
+      e_mark_line(data = list(type = "average", name = "Average"))
   })
   
   # Agriculture variable selector
@@ -4691,17 +5877,17 @@ server <- function(input, output, session) {
   })
   
   # Labor Force Chart - Professional statistical visualization with dropdown
-  output$dem_labor_force_chart <- renderPlotly({
+  output$dem_labor_force_chart <- renderEcharts4r({
     req(input$dem_labor_force_variable)
     
     labor_data <- load_labor_force_data()
     if (is.null(labor_data) || !is.data.frame(labor_data) || nrow(labor_data) == 0) {
-      return(plotly_empty() %>% layout(title = "No data available"))
+      return(e_charts() %>% e_title("No data available"))
     }
     
     # Ensure year column exists
     if (!"year" %in% names(labor_data) && !"Year" %in% names(labor_data)) {
-      return(plotly_empty() %>% layout(title = "Invalid data structure"))
+      return(e_charts() %>% e_title("Invalid data structure"))
     }
     
     # Normalize column names
@@ -4710,65 +5896,68 @@ server <- function(input, output, session) {
     # Sort by year
     labor_data <- labor_data[order(as.numeric(labor_data$year)), ]
     
-    # Find all labor force columns (exclude year and non-numeric columns)
+    # Find all labor force columns
     labor_cols <- names(labor_data)[sapply(labor_data, is.numeric) & names(labor_data) != "year"]
     
     if (length(labor_cols) == 0) {
-      return(plotly_empty() %>% layout(title = "No labor force data found"))
+      return(e_charts() %>% e_title("No labor force data found"))
     }
     
     # Get selected variable
     selected_var <- input$dem_labor_force_variable
     if (!selected_var %in% labor_cols) {
-      selected_var <- labor_cols[1]  # Default to first if selection invalid
+      selected_var <- labor_cols[1]
     }
     
     # Clean column name for display
     display_name <- gsub('_', ' ', selected_var)
     display_name <- tools::toTitleCase(display_name)
     
-    # Create single-line chart with selected variable
-    p <- plot_ly(labor_data, x = ~year, hovermode = 'x unified') %>%
-      add_trace(
-        y = ~get(selected_var),
-        name = display_name,
-        type = 'scatter',
-        mode = 'lines+markers',
-        line = list(color = '#1e40af', width = 3),
-        marker = list(size = 8, color = '#1e40af'),
-        hovertemplate = paste0('<b>', display_name, ':</b> %{y:,.2f}<extra></extra>')
-      ) %>%
-      layout(
-        title = list(
-          text = paste('Rwanda Labor Force -', display_name),
-          font = list(size = 20, color = '#1e40af', family = 'Arial, sans-serif')
-        ),
-        xaxis = list(
-          title = list(text = 'Year', font = list(size = 14, color = '#475569')),
-          showgrid = TRUE,
-          gridcolor = 'rgba(0,0,0,0.1)',
-          tickmode = 'linear',
-          dtick = 1
-        ),
-        yaxis = list(
-          title = list(text = display_name, font = list(size = 14, color = '#475569')),
-          rangemode = 'tozero',
-          showgrid = TRUE,
-          gridcolor = 'rgba(0,0,0,0.1)',
-          tickformat = ',.2f'
-        ),
-        plot_bgcolor = '#ffffff',
-        paper_bgcolor = '#ffffff',
-        margin = list(t = 80, r = 80, b = 60, l = 80),
-        hoverlabel = list(
-          bgcolor = 'rgba(255,255,255,0.95)',
-          bordercolor = '#1e40af',
-          font = list(size = 12, color = '#1e40af')
-        )
-      ) %>%
-      config(displayModeBar = TRUE, displaylogo = FALSE)
+    # Prepare data
+    labor_data$Year <- as.numeric(labor_data$year)
+    labor_data$Value <- as.numeric(labor_data[[selected_var]])
     
-    return(p)
+    labor_data %>%
+      e_charts(Year) %>%
+      e_line(Value,
+             name = display_name,
+             lineStyle = list(color = "#0B78A0", width = 3),
+             itemStyle = list(color = "#0B78A0"),
+             symbol = "circle",
+             symbolSize = 8,
+             smooth = TRUE) %>%
+      e_area(Value,
+             name = "Labor Force Area",
+             itemStyle = list(color = "rgba(11, 120, 160, 0.2)"),
+             lineStyle = list(opacity = 0)) %>%
+      e_tooltip(
+        trigger = "axis",
+        formatter = htmlwidgets::JS(paste0("
+          function(params) {
+            var result = '<b>Year: ' + params[0].axisValue + '</b><br/>';
+            params.forEach(function(item) {
+              if(item.seriesName === '", display_name, "') {
+                result += '", display_name, ": ' + item.value.toFixed(2);
+              }
+            });
+            return result;
+          }
+        "))
+      ) %>%
+      e_x_axis(name = "Year", type = "category") %>%
+      e_y_axis(name = display_name, type = "value",
+               axisLabel = list(formatter = htmlwidgets::JS("function(value) { return value.toFixed(2); }"))) %>%
+      e_legend(show = FALSE) %>%
+      e_title(
+        text = paste("Rwanda Labor Force —", display_name),
+        left = "center",
+        top = "2%",
+        textStyle = list(fontSize = 18, fontWeight = "bold", color = "#042A3B")
+      ) %>%
+      e_grid(left = "10%", right = "10%", bottom = "15%", top = "15%") %>%
+      e_datazoom(type = "slider", start = 0, end = 100) %>%
+      e_mark_point(data = list(type = "max", name = "Peak")) %>%
+      e_mark_line(data = list(type = "average", name = "Average"))
   })
   
   # Labor force variable selector
@@ -4815,7 +6004,7 @@ server <- function(input, output, session) {
     } else {
       # Try to load from file if not in global environment
       tryCatch({
-        land_data <- read.csv("data/datasets/rwanda_land_use_data.csv")
+        land_data <- read.csv(ndip_dataset_path("rwanda_land_use_data.csv"))
         message("[LAND USE] ✅ Loaded from CSV file")
       }, error = function(e) {
         message(sprintf("[LAND USE] ❌ Could not load CSV: %s", e$message))
@@ -4836,7 +6025,7 @@ server <- function(input, output, session) {
     } else {
       # Try to load from file if not in global environment
       tryCatch({
-        agri_gdp_data <- read.csv("data/datasets/rwanda_agriculture_% to GDP data.csv")
+        agri_gdp_data <- read.csv(ndip_dataset_path("rwanda_agriculture_% to GDP data.csv"))
         message("[AGRICULTURE GDP] ✅ Loaded from CSV file")
       }, error = function(e) {
         message(sprintf("[AGRICULTURE GDP] ❌ Could not load CSV: %s", e$message))
@@ -4847,14 +6036,13 @@ server <- function(input, output, session) {
   }
   
   # Land Use Pie Chart - Professional statistical visualization
-  output$dem_land_use_pie_chart <- renderPlotly({
+  output$dem_land_use_pie_chart <- renderEcharts4r({
     land_data <- load_land_use_data()
     if (is.null(land_data) || !is.data.frame(land_data) || nrow(land_data) == 0) {
-      return(plotly_empty() %>% layout(title = "No data available"))
+      return(e_charts() %>% e_title("No data available"))
     }
     
     # Find category and value columns
-    # Look for columns that might contain categories (non-numeric, non-year)
     year_cols <- names(land_data)[grepl('year|Year', names(land_data), ignore.case = TRUE)]
     numeric_cols <- names(land_data)[sapply(land_data, is.numeric)]
     
@@ -4868,7 +6056,6 @@ server <- function(input, output, session) {
     }
     
     # Try to find category and percentage columns
-    # Common patterns: category/type column + percentage/value column
     category_col <- NULL
     value_col <- NULL
     
@@ -4883,27 +6070,25 @@ server <- function(input, output, session) {
     if (length(pct_cols) > 0) {
       value_col <- pct_cols[1]
     } else if (length(numeric_cols) > 0) {
-      # Use first numeric column (excluding year)
       value_col <- numeric_cols[!numeric_cols %in% year_cols][1]
     }
     
-    # If no category column, use row names or create categories from column names
+    # If no category column, use column names as categories
     if (is.null(category_col)) {
-      # Use column names as categories (excluding year and non-numeric)
       value_cols <- names(latest_data)[sapply(latest_data, is.numeric) & !names(latest_data) %in% year_cols]
       if (length(value_cols) > 0) {
         labels <- gsub('_', ' ', value_cols)
         labels <- tools::toTitleCase(labels)
         values <- as.numeric(latest_data[1, value_cols])
       } else {
-        return(plotly_empty() %>% layout(title = "Invalid data structure"))
+        return(e_charts() %>% e_title("Invalid data structure"))
       }
     } else {
       labels <- as.character(latest_data[[category_col]])
       if (!is.null(value_col)) {
         values <- as.numeric(latest_data[[value_col]])
       } else {
-        return(plotly_empty() %>% layout(title = "No value column found"))
+        return(e_charts() %>% e_title("No value column found"))
       }
     }
     
@@ -4913,63 +6098,69 @@ server <- function(input, output, session) {
     values <- values[valid_idx]
     
     if (length(labels) == 0 || length(values) == 0) {
-      return(plotly_empty() %>% layout(title = "No valid data found"))
+      return(e_charts() %>% e_title("No valid data found"))
     }
     
-    # Professional color palette for Rwanda (green, blue, earth tones)
-    colors <- c('#157A4A', '#0B78A0', '#1e40af', '#0284c7', '#0ea5e9', '#06b6d4', '#10b981', '#059669', '#0d9488', '#14b8a6', '#0891b2', '#0c4a6e')
+    # Create data frame for pie chart
+    pie_data <- data.frame(
+      name = labels,
+      value = values
+    )
     
-    # Create pie chart
-    p <- plot_ly(
-      labels = labels,
-      values = values,
-      type = 'pie',
-      hole = 0.4,  # Donut chart for modern look
-      textinfo = 'label+percent',
-      textposition = 'outside',
-      marker = list(
-        colors = colors[1:length(labels)],
-        line = list(color = '#ffffff', width = 2)
-      ),
-      hovertemplate = '<b>%{label}</b><br>Value: %{value:.2f}%<br>Percentage: %{percent}<extra></extra>'
-    ) %>%
-      layout(
-        title = list(
-          text = 'Rwanda Land Use Distribution',
-          font = list(size = 20, color = '#1e40af', family = 'Arial, sans-serif'),
-          x = 0.5
-        ),
-        showlegend = TRUE,
-        legend = list(
-          orientation = 'v',
-          x = 1.05,
-          y = 0.5,
-          font = list(size = 12)
-        ),
-        plot_bgcolor = '#ffffff',
-        paper_bgcolor = '#ffffff',
-        margin = list(t = 80, r = 150, b = 60, l = 60),
-        hoverlabel = list(
-          bgcolor = 'rgba(255,255,255,0.95)',
-          bordercolor = '#1e40af',
-          font = list(size = 12, color = '#1e40af')
-        )
+    # Professional color palette for Rwanda (blue tones)
+    colors <- c('#0284c7', '#0B78A0', '#1e40af', '#0369a1', '#0ea5e9', '#06b6d4', '#0891b2', '#0c4a6e', '#075985', '#0e7490', '#155e75', '#164e63')
+    
+    pie_data %>%
+      e_charts(name) %>%
+      e_pie(value,
+            name = "Land Use",
+            radius = c("40%", "70%"),  # Donut chart
+            itemStyle = list(
+              borderRadius = 8,
+              borderColor = "#fff",
+              borderWidth = 2
+            ),
+            label = list(
+              show = TRUE,
+              formatter = htmlwidgets::JS("function(params) { return params.name + '\\n' + params.percent + '%'; }")
+            ),
+            emphasis = list(
+              itemStyle = list(
+                shadowBlur = 10,
+                shadowOffsetX = 0,
+                shadowColor = "rgba(0, 0, 0, 0.5)"
+              )
+            )) %>%
+      e_color(colors[1:length(labels)]) %>%
+      e_tooltip(
+        trigger = "item",
+        formatter = htmlwidgets::JS("
+          function(params) {
+            return '<b>' + params.name + '</b><br/>' +
+                   'Value: ' + params.value.toFixed(2) + '%<br/>' +
+                   'Percentage: ' + params.percent + '%';
+          }
+        ")
       ) %>%
-      config(displayModeBar = TRUE, displaylogo = FALSE)
-    
-    return(p)
+      e_legend(show = TRUE, orient = "vertical", right = "10%", top = "center") %>%
+      e_title(
+        text = "Rwanda Land Use Distribution",
+        left = "center",
+        top = "2%",
+        textStyle = list(fontSize = 18, fontWeight = "bold", color = "#042A3B")
+      )
   })
   
   # Agriculture to GDP Chart - Professional statistical visualization
-  output$dem_agriculture_gdp_chart <- renderPlotly({
+  output$dem_agriculture_gdp_chart <- renderEcharts4r({
     agri_gdp_data <- load_agriculture_gdp_data()
     if (is.null(agri_gdp_data) || !is.data.frame(agri_gdp_data) || nrow(agri_gdp_data) == 0) {
-      return(plotly_empty() %>% layout(title = "No data available"))
+      return(e_charts() %>% e_title("No data available"))
     }
     
     # Ensure year column exists
     if (!"year" %in% names(agri_gdp_data) && !"Year" %in% names(agri_gdp_data)) {
-      return(plotly_empty() %>% layout(title = "Invalid data structure"))
+      return(e_charts() %>% e_title("Invalid data structure"))
     }
     
     # Normalize column names
@@ -4982,66 +6173,61 @@ server <- function(input, output, session) {
     pct_cols <- names(agri_gdp_data)[grepl('percent|%|pct|agriculture|gdp', names(agri_gdp_data), ignore.case = TRUE) & sapply(agri_gdp_data, is.numeric)]
     
     if (length(pct_cols) == 0) {
-      # Try to find any numeric column (excluding year)
       numeric_cols <- names(agri_gdp_data)[sapply(agri_gdp_data, is.numeric) & names(agri_gdp_data) != "year"]
       if (length(numeric_cols) > 0) {
         pct_col <- numeric_cols[1]
       } else {
-        return(plotly_empty() %>% layout(title = "No percentage data found"))
+        return(e_charts() %>% e_title("No percentage data found"))
       }
     } else {
       pct_col <- pct_cols[1]
     }
     
-    # Clean column name for display
-    display_name <- gsub('_', ' ', pct_col)
-    display_name <- tools::toTitleCase(display_name)
+    # Prepare data
+    agri_gdp_data$Year <- as.numeric(agri_gdp_data$year)
+    agri_gdp_data$Value <- as.numeric(agri_gdp_data[[pct_col]])
     
-    # Create line chart
-    p <- plot_ly(agri_gdp_data, x = ~year, hovermode = 'x unified') %>%
-      add_trace(
-        y = ~get(pct_col),
-        name = 'Agriculture % to GDP',
-        type = 'scatter',
-        mode = 'lines+markers',
-        fill = 'tozeroy',
-        fillcolor = 'rgba(21, 122, 74, 0.2)',  # Green with transparency
-        line = list(color = '#157A4A', width = 3),
-        marker = list(size = 8, color = '#157A4A'),
-        hovertemplate = paste0('<b>Year:</b> %{x}<br><b>Agriculture % to GDP:</b> %{y:.2f}%<extra></extra>')
+    agri_gdp_data %>%
+      e_charts(Year) %>%
+      e_line(Value,
+             name = "Agriculture % to GDP",
+             lineStyle = list(color = "#0284c7", width = 3),
+             itemStyle = list(color = "#0284c7"),
+             symbol = "circle",
+             symbolSize = 8,
+             smooth = TRUE) %>%
+      e_area(Value,
+             name = "Agriculture Area",
+             itemStyle = list(color = "rgba(2, 132, 199, 0.2)"),
+             lineStyle = list(opacity = 0)) %>%
+      e_tooltip(
+        trigger = "axis",
+        formatter = htmlwidgets::JS("
+          function(params) {
+            var result = '<b>Year: ' + params[0].axisValue + '</b><br/>';
+            params.forEach(function(item) {
+              if(item.seriesName === 'Agriculture % to GDP') {
+                result += 'Agriculture % to GDP: ' + item.value.toFixed(2) + '%';
+              }
+            });
+            return result;
+          }
+        ")
       ) %>%
-      layout(
-        title = list(
-          text = 'Agriculture Contribution to Rwanda GDP (%)',
-          font = list(size = 20, color = '#1e40af', family = 'Arial, sans-serif')
-        ),
-        xaxis = list(
-          title = list(text = 'Year', font = list(size = 14, color = '#475569')),
-          showgrid = TRUE,
-          gridcolor = 'rgba(0,0,0,0.1)',
-          tickmode = 'linear',
-          dtick = 1
-        ),
-        yaxis = list(
-          title = list(text = 'Percentage (%)', font = list(size = 14, color = '#475569')),
-          rangemode = 'tozero',
-          showgrid = TRUE,
-          gridcolor = 'rgba(0,0,0,0.1)',
-          tickformat = '.2f',
-          ticksuffix = '%'
-        ),
-        plot_bgcolor = '#ffffff',
-        paper_bgcolor = '#ffffff',
-        margin = list(t = 80, r = 80, b = 60, l = 80),
-        hoverlabel = list(
-          bgcolor = 'rgba(255,255,255,0.95)',
-          bordercolor = '#157A4A',
-          font = list(size = 12, color = '#157A4A')
-        )
+      e_x_axis(name = "Year", type = "category") %>%
+      e_y_axis(name = "Percentage (%)", type = "value",
+               axisLabel = list(formatter = htmlwidgets::JS("function(value) { return value.toFixed(2) + '%'; }"))) %>%
+      e_legend(show = FALSE) %>%
+      e_title(
+        text = "Agriculture Contribution to Rwanda GDP (%)",
+        left = "center",
+        top = "2%",
+        textStyle = list(fontSize = 18, fontWeight = "bold", color = "#042A3B")
       ) %>%
-      config(displayModeBar = TRUE, displaylogo = FALSE)
-    
-    return(p)
+      e_grid(left = "10%", right = "10%", bottom = "15%", top = "15%") %>%
+      e_datazoom(type = "slider", start = 0, end = 100) %>%
+      e_mark_point(data = list(type = "max", name = "Peak")) %>%
+      e_mark_line(data = list(type = "average", name = "Average"))
   })
   
   # Old agriculture outputs (kept for backward compatibility but not used in UI)
@@ -5378,9 +6564,9 @@ server <- function(input, output, session) {
   })
   
   # Education Indicators Chart
-  output$health_education_chart <- renderPlotly({
+  output$health_education_chart <- renderEcharts4r({
     req(input$health_education_variable)
-    if(!exists('Rwanda_education')) return(plotly_empty() %>% layout(title = "No data available"))
+    if(!exists('Rwanda_education')) return(e_charts() %>% e_title("No data available"))
     
     df <- as.data.frame(Rwanda_education)
     
@@ -5394,39 +6580,54 @@ server <- function(input, output, session) {
     }
     
     var_name <- input$health_education_variable
-    if (!var_name %in% names(df)) return(plotly_empty() %>% layout(title = "Variable not found"))
+    if (!var_name %in% names(df)) return(e_charts() %>% e_title("Variable not found"))
     
-    # Create professional chart
-    p <- plot_ly(
-      data = df,
-      x = ~get(year_col),
-      y = ~get(var_name),
-      type = 'scatter',
-      mode = 'lines+markers',
-      line = list(color = '#1e40af', width = 3),
-      marker = list(color = '#1e40af', size = 8, line = list(color = '#fff', width = 2)),
-      name = gsub('_', ' ', var_name)
-    ) %>%
-      layout(
-        title = list(
-          text = paste('Rwanda Education Indicators:', gsub('_', ' ', tools::toTitleCase(var_name))),
-          font = list(size = 18, color = '#1e40af')
-        ),
-        xaxis = list(title = 'Year', tickmode = 'linear', dtick = 1),
-        yaxis = list(
-          title = gsub('_', ' ', tools::toTitleCase(var_name)), 
-          range = c(0, 200),
-          tickmode = 'linear',
-          dtick = 20
-        ),
-        hovermode = 'x unified',
-        plot_bgcolor = '#ffffff',
-        paper_bgcolor = '#ffffff',
-        margin = list(t = 80, r = 80, b = 60, l = 80)
+    # Prepare data
+    df$Year <- as.numeric(df[[year_col]])
+    df$Value <- as.numeric(df[[var_name]])
+    var_display <- gsub('_', ' ', tools::toTitleCase(var_name))
+    
+    df %>%
+      e_charts(Year) %>%
+      e_line(Value,
+             name = var_display,
+             lineStyle = list(color = "#0B78A0", width = 3),
+             itemStyle = list(color = "#0B78A0"),
+             symbol = "circle",
+             symbolSize = 8,
+             smooth = TRUE) %>%
+      e_area(Value,
+             name = "Education Area",
+             itemStyle = list(color = "rgba(11, 120, 160, 0.2)"),
+             lineStyle = list(opacity = 0)) %>%
+      e_tooltip(
+        trigger = "axis",
+        formatter = htmlwidgets::JS(paste0("
+          function(params) {
+            var result = '<b>Year: ' + params[0].axisValue + '</b><br/>';
+            params.forEach(function(item) {
+              if(item.seriesName === '", var_display, "') {
+                result += '", var_display, ": ' + item.value.toFixed(2);
+              }
+            });
+            return result;
+          }
+        "))
       ) %>%
-      config(displayModeBar = TRUE, displaylogo = FALSE)
-    
-    return(p)
+      e_x_axis(name = "Year", type = "category") %>%
+      e_y_axis(name = var_display, type = "value",
+               axisLabel = list(formatter = htmlwidgets::JS("function(value) { return value.toFixed(0); }"))) %>%
+      e_legend(show = FALSE) %>%
+      e_title(
+        text = paste("Rwanda Education Indicators —", var_display),
+        left = "center",
+        top = "2%",
+        textStyle = list(fontSize = 18, fontWeight = "bold", color = "#042A3B")
+      ) %>%
+      e_grid(left = "10%", right = "10%", bottom = "15%", top = "15%") %>%
+      e_datazoom(type = "slider", start = 0, end = 100) %>%
+      e_mark_point(data = list(type = "max", name = "Peak")) %>%
+      e_mark_line(data = list(type = "average", name = "Average"))
   })
   
   # School Type Percentages Variable Selector
@@ -5456,9 +6657,9 @@ server <- function(input, output, session) {
   })
   
   # School Type Percentages Chart
-  output$health_school_type_chart <- renderPlotly({
+  output$health_school_type_chart <- renderEcharts4r({
     req(input$health_school_type_variable)
-    if(!exists('Rwanda_schools')) return(plotly_empty() %>% layout(title = "No data available"))
+    if(!exists('Rwanda_schools')) return(e_charts() %>% e_title("No data available"))
     
     df <- as.data.frame(Rwanda_schools)
     
@@ -5472,41 +6673,54 @@ server <- function(input, output, session) {
     }
     
     var_name <- input$health_school_type_variable
-    if (!var_name %in% names(df)) return(plotly_empty() %>% layout(title = "Variable not found"))
+    if (!var_name %in% names(df)) return(e_charts() %>% e_title("Variable not found"))
     
-    # Create professional chart
-    p <- plot_ly(
-      data = df,
-      x = ~get(year_col),
-      y = ~get(var_name),
-      type = 'scatter',
-      mode = 'lines+markers',
-      line = list(color = '#0ea5e9', width = 3),
-      marker = list(color = '#0ea5e9', size = 8, line = list(color = '#fff', width = 2)),
-      fill = 'tozeroy',
-      fillcolor = 'rgba(14, 165, 233, 0.1)',
-      name = gsub('_', ' ', var_name)
-    ) %>%
-      layout(
-        title = list(
-          text = paste('School Type Percentages:', gsub('_', ' ', tools::toTitleCase(var_name))),
-          font = list(size = 18, color = '#1e40af')
-        ),
-        xaxis = list(title = 'Year', tickmode = 'linear', dtick = 1),
-        yaxis = list(
-          title = 'Percentage (%)', 
-          range = c(0, 100),
-          tickmode = 'linear',
-          dtick = 10
-        ),
-        hovermode = 'x unified',
-        plot_bgcolor = '#ffffff',
-        paper_bgcolor = '#ffffff',
-        margin = list(t = 80, r = 80, b = 60, l = 80)
+    # Prepare data
+    df$Year <- as.numeric(df[[year_col]])
+    df$Value <- as.numeric(df[[var_name]])
+    var_display <- gsub('_', ' ', tools::toTitleCase(var_name))
+    
+    df %>%
+      e_charts(Year) %>%
+      e_line(Value,
+             name = var_display,
+             lineStyle = list(color = "#0284c7", width = 3),
+             itemStyle = list(color = "#0284c7"),
+             symbol = "circle",
+             symbolSize = 8,
+             smooth = TRUE) %>%
+      e_area(Value,
+             name = "School Type Area",
+             itemStyle = list(color = "rgba(2, 132, 199, 0.2)"),
+             lineStyle = list(opacity = 0)) %>%
+      e_tooltip(
+        trigger = "axis",
+        formatter = htmlwidgets::JS(paste0("
+          function(params) {
+            var result = '<b>Year: ' + params[0].axisValue + '</b><br/>';
+            params.forEach(function(item) {
+              if(item.seriesName === '", var_display, "') {
+                result += '", var_display, ": ' + item.value.toFixed(2) + '%';
+              }
+            });
+            return result;
+          }
+        "))
       ) %>%
-      config(displayModeBar = TRUE, displaylogo = FALSE)
-    
-    return(p)
+      e_x_axis(name = "Year", type = "category") %>%
+      e_y_axis(name = "Percentage (%)", type = "value",
+               axisLabel = list(formatter = htmlwidgets::JS("function(value) { return value.toFixed(0) + '%'; }"))) %>%
+      e_legend(show = FALSE) %>%
+      e_title(
+        text = paste("School Type Percentages —", var_display),
+        left = "center",
+        top = "2%",
+        textStyle = list(fontSize = 18, fontWeight = "bold", color = "#042A3B")
+      ) %>%
+      e_grid(left = "10%", right = "10%", bottom = "15%", top = "15%") %>%
+      e_datazoom(type = "slider", start = 0, end = 100) %>%
+      e_mark_point(data = list(type = "max", name = "Peak")) %>%
+      e_mark_line(data = list(type = "average", name = "Average"))
   })
   
   # Health Indicators Variable Selector
@@ -5546,9 +6760,9 @@ server <- function(input, output, session) {
   })
   
   # Health Indicators Chart
-  output$health_indicators_chart <- renderPlotly({
+  output$health_indicators_chart <- renderEcharts4r({
     req(input$health_indicators_variable)
-    if(!exists('Rwanda_health')) return(plotly_empty() %>% layout(title = "No data available"))
+    if(!exists('Rwanda_health')) return(e_charts() %>% e_title("No data available"))
     
     df <- as.data.frame(Rwanda_health)
     
@@ -5562,44 +6776,54 @@ server <- function(input, output, session) {
     }
     
     var_name <- input$health_indicators_variable
-    if (!var_name %in% names(df)) return(plotly_empty() %>% layout(title = "Variable not found"))
+    if (!var_name %in% names(df)) return(e_charts() %>% e_title("Variable not found"))
     
-    # Create professional chart
-    p <- plot_ly(
-      data = df,
-      x = ~get(year_col),
-      y = ~get(var_name),
-      type = 'scatter',
-      mode = 'lines+markers',
-      line = list(color = '#0ea5e9', width = 3),
-      marker = list(color = '#0ea5e9', size = 8, line = list(color = '#fff', width = 2)),
-      name = gsub('_', ' ', var_name)
-    ) %>%
-      layout(
-        title = list(
-          text = paste('Rwanda Health Indicators:', gsub('_', ' ', tools::toTitleCase(var_name))),
-          font = list(size = 18, color = '#1e40af')
-        ),
-        xaxis = list(title = 'Year', tickmode = 'linear', dtick = 1),
-        yaxis = list(
-          title = gsub('_', ' ', tools::toTitleCase(var_name)), 
-          range = c(0, 100),
-          tickmode = 'linear',
-          dtick = 10
-        ),
-        hovermode = 'x unified',
-        plot_bgcolor = '#ffffff',
-        paper_bgcolor = '#ffffff',
-        margin = list(t = 80, r = 80, b = 60, l = 80),
-        hoverlabel = list(
-          bgcolor = 'rgba(255,255,255,0.95)',
-          bordercolor = '#0ea5e9',
-          font = list(size = 12, color = '#1e40af')
-        )
+    # Prepare data
+    df$Year <- as.numeric(df[[year_col]])
+    df$Value <- as.numeric(df[[var_name]])
+    var_display <- gsub('_', ' ', tools::toTitleCase(var_name))
+    
+    df %>%
+      e_charts(Year) %>%
+      e_line(Value,
+             name = var_display,
+             lineStyle = list(color = "#0B78A0", width = 3),
+             itemStyle = list(color = "#0B78A0"),
+             symbol = "circle",
+             symbolSize = 8,
+             smooth = TRUE) %>%
+      e_area(Value,
+             name = "Health Area",
+             itemStyle = list(color = "rgba(11, 120, 160, 0.2)"),
+             lineStyle = list(opacity = 0)) %>%
+      e_tooltip(
+        trigger = "axis",
+        formatter = htmlwidgets::JS(paste0("
+          function(params) {
+            var result = '<b>Year: ' + params[0].axisValue + '</b><br/>';
+            params.forEach(function(item) {
+              if(item.seriesName === '", var_display, "') {
+                result += '", var_display, ": ' + item.value.toFixed(2);
+              }
+            });
+            return result;
+          }
+        "))
       ) %>%
-      config(displayModeBar = TRUE, displaylogo = FALSE)
-    
-    return(p)
+      e_x_axis(name = "Year", type = "category") %>%
+      e_y_axis(name = var_display, type = "value",
+               axisLabel = list(formatter = htmlwidgets::JS("function(value) { return value.toFixed(0); }"))) %>%
+      e_legend(show = FALSE) %>%
+      e_title(
+        text = paste("Rwanda Health Indicators —", var_display),
+        left = "center",
+        top = "2%",
+        textStyle = list(fontSize = 18, fontWeight = "bold", color = "#042A3B")
+      ) %>%
+      e_grid(left = "10%", right = "10%", bottom = "15%", top = "15%") %>%
+      e_datazoom(type = "slider", start = 0, end = 100) %>%
+      e_mark_point(data = list(type = "max", name = "Peak")) %>%
+      e_mark_line(data = list(type = "average", name = "Average"))
   })
 
   # Education Indicators Forecast Variable Selector
@@ -5627,85 +6851,261 @@ server <- function(input, output, session) {
   })
   
   # Education Indicators Forecast Chart
-  output$health_education_forecast_chart <- renderPlotly({
-    req(input$health_education_forecast_variable, input$health_education_forecast_model)
+  # Education Indicators ML Chart (Random Forest) - echarts4r
+  output$health_education_ml_chart <- renderEcharts4r({
+    req(input$health_education_forecast_variable)
     
-    if(!exists('Rwanda_education')) return(plotly_empty() %>% layout(title = "No data available"))
+    if(!exists('Rwanda_education')) {
+      return(e_charts() %>% e_title("Education data not available"))
+    }
     
-    df <- as.data.frame(Rwanda_education)
+    edu_data <- as.data.frame(Rwanda_education)
     
     # Normalize column names
-    if ("Year" %in% names(df)) names(df)[names(df) == "Year"] <- "year"
-    if ("year" %in% names(df)) {
-      df <- df[order(as.numeric(df$year), decreasing = FALSE), ]
-    }
+    if("Year" %in% names(edu_data)) names(edu_data)[names(edu_data) == "Year"] <- "year"
     
     var_name <- input$health_education_forecast_variable
-    if (!var_name %in% names(df)) return(plotly_empty() %>% layout(title = "Variable not found"))
-    
-    forecast_data <- create_arima_forecast(df, var_name, input$health_education_forecast_model)
-    
-    if (!is.null(forecast_data$error)) {
-      return(plotly_empty() %>% layout(title = paste("Error:", forecast_data$error)))
+    if(!var_name %in% names(edu_data)) {
+      return(e_charts() %>% e_title("Variable not found"))
     }
     
-    # Create plot
+    # Generate Random Forest forecast
+    forecast_data <- create_random_forest_forecast(edu_data, var_name, forecast_years = 5)
+    
+    if(!is.null(forecast_data$error)) {
+      return(e_charts() %>% e_title(paste("Error:", forecast_data$error)))
+    }
+    
     var_display <- gsub('_', ' ', tools::toTitleCase(var_name))
-    if (!is.null(forecast_data$used_auto) && forecast_data$used_auto) {
-      model_display <- paste("ARIMA", paste(forecast_data$model$arma[c(1,6,2)], collapse=","), sep="")
-    } else {
-      model_display <- if(input$health_education_forecast_model == "arima111") "ARIMA(1,1,1)" else "ARIMA(2,1,2)"
-    }
     
-    p <- plot_ly() %>%
-      add_bars(
-        x = forecast_data$hist_years,
-        y = forecast_data$hist_values,
-        name = 'Historical',
-        marker = list(color = '#1e40af', opacity = 0.8)
-      ) %>%
-      add_bars(
-        x = forecast_data$f_years,
-        y = forecast_data$f_mean,
-        name = 'Forecast (mean)',
-        marker = list(color = '#157A4A', opacity = 0.8)
-      ) %>%
-      add_ribbons(
-        x = forecast_data$f_years,
-        ymin = forecast_data$f_lower,
-        ymax = forecast_data$f_upper,
-        name = '95% CI',
-        fillcolor = 'rgba(21, 122, 74, 0.2)',
-        line = list(color = 'transparent')
-      ) %>%
-      layout(
-        title = list(
-          text = paste(var_display, '- Historical & Forecast -', model_display),
-          font = list(size = 18, color = '#1e40af')
-        ),
-        xaxis = list(title = 'Year', tickmode = 'linear', dtick = 1),
-        yaxis = list(title = var_display, range = c(0, 200), tickmode = 'linear', dtick = 20),
-        barmode = 'group',
-        hovermode = 'x unified',
-        showlegend = TRUE,
-        plot_bgcolor = '#ffffff',
-        paper_bgcolor = '#ffffff'
-      )
+    # Combine historical and forecast data
+    all_years <- c(forecast_data$hist_years, forecast_data$f_years)
+    all_values <- c(forecast_data$hist_values, forecast_data$f_mean)
+    all_lower <- c(rep(NA, length(forecast_data$hist_values)), forecast_data$f_lower)
+    all_upper <- c(rep(NA, length(forecast_data$hist_values)), forecast_data$f_upper)
     
-    return(p)
+    chart_data <- data.frame(
+      year = all_years,
+      value = all_values,
+      lower = all_lower,
+      upper = all_upper
+    )
+    
+    chart_data %>%
+      e_charts(year) %>%
+      e_line(value, 
+             name = "Historical & Forecast",
+             lineStyle = list(color = "#0B78A0", width = 3),
+             itemStyle = list(color = "#0B78A0"),
+             symbol = "circle",
+             symbolSize = 8) %>%
+      e_area_(c("lower", "upper"),
+              name = "95% Confidence Interval",
+              stack = "confidence",
+              itemStyle = list(color = "rgba(2, 132, 199, 0.2)"),
+              lineStyle = list(opacity = 0),
+              areaStyle = list(opacity = 0.3)) %>%
+      e_tooltip(trigger = "axis") %>%
+      e_x_axis(name = "Year", type = "category") %>%
+      e_y_axis(name = var_display, type = "value") %>%
+      e_legend(show = TRUE, top = "8%") %>%
+      e_title(
+        text = paste("Education Indicators Forecast - Random Forest ML Model"),
+        left = "center",
+        top = "2%",
+        textStyle = list(fontSize = 18, fontWeight = "bold", color = "#0B78A0")
+      ) %>%
+      e_grid(left = "10%", right = "10%", bottom = "15%", top = "20%") %>%
+      e_datazoom(type = "slider", start = 0, end = 100)
   })
   
-  # Education Indicators Forecast Metrics
+  # Education Indicators ML Metrics
+  output$health_education_ml_metrics <- renderUI({
+    req(input$health_education_forecast_variable)
+    
+    if(!exists('Rwanda_education')) return(HTML("No data available"))
+    
+    edu_data <- as.data.frame(Rwanda_education)
+    if("Year" %in% names(edu_data)) names(edu_data)[names(edu_data) == "Year"] <- "year"
+    
+    var_name <- input$health_education_forecast_variable
+    if(!var_name %in% names(edu_data)) return(HTML("<p style='color:red;'>Variable not found</p>"))
+    
+    forecast_data <- create_random_forest_forecast(edu_data, var_name)
+    if(!is.null(forecast_data$error)) {
+      return(HTML(paste0("<p style='color:red;'>Error: ", forecast_data$error, "</p>")))
+    }
+    
+    m <- forecast_data$metrics
+    HTML(paste0(
+      "<div style='font-size:12px; line-height:1.8;'>",
+      "<strong>Model:</strong> Random Forest ML<br><br>",
+      "<strong>Performance Metrics:</strong><br>",
+      "R²: ", sprintf("%.3f", m$r_squared), "<br>",
+      "RMSE: ", sprintf("%.2f", m$rmse), "<br>",
+      "MAE: ", sprintf("%.2f", m$mae), "<br><br>",
+      "<strong>Diagnostics:</strong><br>",
+      "Std Dev: ", sprintf("%.2f", m$std_dev), "<br>",
+      "Variance: ", sprintf("%.2f", m$variance),
+      "</div>"
+    ))
+  })
+  
+  # Education Indicators ML Interpretation
+  output$health_education_ml_interpretation <- renderUI({
+    req(input$health_education_forecast_variable)
+    
+    if(!exists('Rwanda_education')) return(HTML("No data available"))
+    
+    edu_data <- as.data.frame(Rwanda_education)
+    if("Year" %in% names(edu_data)) names(edu_data)[names(edu_data) == "Year"] <- "year"
+    
+    var_name <- input$health_education_forecast_variable
+    if(!var_name %in% names(edu_data)) return(HTML("<p style='color:red;'>Variable not found</p>"))
+    
+    forecast_data <- create_random_forest_forecast(edu_data, var_name)
+    if(!is.null(forecast_data$error)) {
+      return(HTML(paste0("<p style='color:red;'>Error: ", forecast_data$error, "</p>")))
+    }
+    
+    next_year_forecast <- forecast_data$forecast_value
+    current_value <- forecast_data$current_value
+    lower_ci <- forecast_data$f_lower[1]
+    upper_ci <- forecast_data$f_upper[1]
+    
+    var_imp <- importance(forecast_data$model)
+    top_var <- rownames(var_imp)[which.max(var_imp[, "%IncMSE"])]
+    
+    var_display <- gsub('_', ' ', tools::toTitleCase(var_name))
+    
+    interpretation <- sprintf(
+      "The Random Forest ML model forecasts Rwanda's %s to be %.2f in the next year (95%% CI: %.2f to %.2f). This model, which considers multiple factors and their interactions, suggests %s. The most influential factor in this prediction was '%s'.",
+      var_display, next_year_forecast, lower_ci, upper_ci,
+      if(next_year_forecast > current_value) "a continued upward trend" else "a potential stabilization or slight decline",
+      gsub('_', ' ', tools::toTitleCase(top_var))
+    )
+    
+    HTML(paste0("<div style='font-size:13px; line-height:1.6; color:#475569;'>", interpretation, "</div>"))
+  })
+  
+  # Health Education Forecast Metrics
   output$health_education_forecast_model_metrics <- renderUI({
     req(input$health_education_forecast_variable, input$health_education_forecast_model)
     
     if(!exists('Rwanda_education')) return(HTML("No data available"))
     
-    df <- as.data.frame(Rwanda_education)
-    if ("Year" %in% names(df)) names(df)[names(df) == "Year"] <- "year"
-    if ("year" %in% names(df)) {
-      df <- df[order(as.numeric(df$year), decreasing = FALSE), ]
+    edu_data <- as.data.frame(Rwanda_education)
+    if("Year" %in% names(edu_data)) names(edu_data)[names(edu_data) == "Year"] <- "year"
+    
+    var_name <- input$health_education_forecast_variable
+    if(!var_name %in% names(edu_data)) return(HTML("<p style='color:red;'>Variable not found</p>"))
+    
+    # Generate forecast
+    if(input$health_education_forecast_model == "random_forest") {
+      forecast_data <- create_random_forest_forecast(edu_data, var_name)
+    } else {
+      forecast_data <- create_arima_forecast(edu_data, var_name, input$health_education_forecast_model)
     }
+    
+    if(!is.null(forecast_data$error)) {
+      return(HTML(paste0("<p style='color:red;'>Error: ", forecast_data$error, "</p>")))
+    }
+    
+    m <- forecast_data$metrics
+    model_info <- if(!is.null(forecast_data$used_rf) && forecast_data$used_rf) {
+      "Random Forest"
+    } else if(!is.null(forecast_data$used_auto) && forecast_data$used_auto) {
+      paste("Auto-selected ARIMA", paste(forecast_data$model$arma[c(1,6,2)], collapse=","), sep="")
+    } else {
+      if(input$health_education_forecast_model == "arima111") "ARIMA(1,1,1)" else "ARIMA(2,1,2)"
+    }
+    
+    if(!is.null(forecast_data$used_rf) && forecast_data$used_rf) {
+      metrics_text <- paste0(
+        "<div style='font-size:12px; line-height:1.8;'>",
+        "<strong>Model:</strong> ", model_info, "<br><br>",
+        "<strong>Model Performance Metrics:</strong><br>",
+        "R²: ", sprintf("%.3f", m$r_squared), "<br>",
+        "RMSE: ", sprintf("%.2f", m$rmse), "<br>",
+        "MAE: ", sprintf("%.2f", m$mae), "<br><br>",
+        "<strong>Model Diagnostics:</strong><br>",
+        "Variance: ", sprintf("%.2f", m$variance), "<br>",
+        "Std Dev: ", sprintf("%.2f", m$std_dev),
+        "</div>"
+      )
+    } else {
+      metrics_text <- paste0(
+        "<div style='font-size:12px; line-height:1.8;'>",
+        "<strong>Model:</strong> ", model_info, "<br><br>",
+        "<strong>Model Performance Metrics:</strong><br>",
+        "AIC: ", sprintf("%.2f", m$aic), "<br>",
+        "BIC: ", sprintf("%.2f", m$bic), "<br>",
+        "RMSE: ", sprintf("%.2f", m$rmse), "<br>",
+        "MAE: ", sprintf("%.2f", m$mae), "<br><br>",
+        "<strong>Model Diagnostics:</strong><br>",
+        "Variance: ", sprintf("%.2f", m$variance), "<br>",
+        "Std Dev: ", sprintf("%.2f", m$std_dev),
+        "</div>"
+      )
+    }
+    return(HTML(metrics_text))
+  })
+  
+  # Health Education Forecast Interpretation
+  output$health_education_forecast_interpretation <- renderUI({
+    req(input$health_education_forecast_variable, input$health_education_forecast_model)
+    
+    if(!exists('Rwanda_education')) return(HTML("No data available"))
+    
+    edu_data <- as.data.frame(Rwanda_education)
+    if("Year" %in% names(edu_data)) names(edu_data)[names(edu_data) == "Year"] <- "year"
+    
+    var_name <- input$health_education_forecast_variable
+    if(!var_name %in% names(edu_data)) return(HTML("<p style='color:red;'>Variable not found</p>"))
+    
+    # Generate forecast
+    if(input$health_education_forecast_model == "random_forest") {
+      forecast_data <- create_random_forest_forecast(edu_data, var_name)
+    } else {
+      forecast_data <- create_arima_forecast(edu_data, var_name, input$health_education_forecast_model)
+    }
+    
+    if(!is.null(forecast_data$error)) {
+      return(HTML(paste0("<p style='color:red;'>Error: ", forecast_data$error, "</p>")))
+    }
+    
+    var_display <- gsub('_', ' ', tools::toTitleCase(var_name))
+    next_year <- forecast_data$forecast_value
+    current_value <- forecast_data$current_value
+    lower_ci <- forecast_data$f_lower[1]
+    upper_ci <- forecast_data$f_upper[1]
+    change_pct <- forecast_data$change_pct
+    
+    if(!is.null(forecast_data$used_rf) && forecast_data$used_rf) {
+      interpretation <- sprintf(
+        "Using the Random Forest model, %s is forecasted to be %.2f in 2025 (95%% CI: %.2f to %.2f). This represents a %.1f%% change from the current value of %.2f. Random Forest captures non-linear relationships and feature interactions, indicating %s.",
+        var_display, next_year, lower_ci, upper_ci, change_pct, current_value,
+        if(change_pct > 0) "positive trends ahead" else "potential stabilization or decline"
+      )
+    } else {
+      interpretation <- sprintf(
+        "Using the %s model, %s is forecasted to be %.2f in 2025 (95%% CI: %.2f to %.2f). This represents a %.1f%% change from the current value of %.2f.",
+        if(input$health_education_forecast_model == "arima111") "ARIMA(1,1,1)" else "ARIMA(2,1,2)",
+        var_display, next_year, lower_ci, upper_ci, change_pct, current_value
+      )
+    }
+    
+    return(HTML(paste0("<div style='font-size:13px; line-height:1.6; color:#475569;'>", interpretation, "</div>")))
+  })
+  
+  # Health Indicators Forecast Variable Selector
+  output$health_indicators_forecast_variable_ui <- renderUI({
+    req(input$health_education_forecast_variable, input$health_education_forecast_model)
+    
+    if(!exists('Rwanda_education')) return(HTML("No data available"))
+    
+    edu_data <- as.data.frame(Rwanda_education)
+    if("Year" %in% names(edu_data)) names(edu_data)[names(edu_data) == "Year"] <- "year"
     
     var_name <- input$health_education_forecast_variable
     if (!var_name %in% names(df)) return(HTML("<p style='color:red;'>Variable not found</p>"))
@@ -5812,7 +7212,289 @@ server <- function(input, output, session) {
     )
   })
   
-  # School Type Percentages Forecast Chart
+  # School Type Percentages ML Chart (Random Forest) - echarts4r
+  output$health_school_type_ml_chart <- renderEcharts4r({
+    req(input$health_school_type_forecast_variable)
+    
+    if(!exists('Rwanda_schools')) return(e_charts() %>% e_title("No data available"))
+    
+    df <- as.data.frame(Rwanda_schools)
+    
+    # Normalize column names
+    if ("Year" %in% names(df)) names(df)[names(df) == "Year"] <- "year"
+    if ("year" %in% names(df)) {
+      df <- df[order(as.numeric(df$year), decreasing = FALSE), ]
+    }
+    
+    var_name <- input$health_school_type_forecast_variable
+    if (!var_name %in% names(df)) return(e_charts() %>% e_title("Variable not found"))
+    
+    forecast_data <- create_random_forest_forecast(df, var_name, forecast_years = 5)
+    
+    if (!is.null(forecast_data$error)) {
+      return(e_charts() %>% e_title(paste("Error:", forecast_data$error)))
+    }
+    
+    var_display <- gsub('_', ' ', tools::toTitleCase(var_name))
+    
+    # Combine historical and forecast data
+    all_years <- c(forecast_data$hist_years, forecast_data$f_years)
+    all_values <- c(forecast_data$hist_values, forecast_data$f_mean)
+    all_lower <- c(rep(NA, length(forecast_data$hist_values)), forecast_data$f_lower)
+    all_upper <- c(rep(NA, length(forecast_data$hist_values)), forecast_data$f_upper)
+    
+    chart_data <- data.frame(
+      year = all_years,
+      value = all_values,
+      lower = all_lower,
+      upper = all_upper
+    )
+    
+    chart_data %>%
+      e_charts(year) %>%
+      e_line(value, 
+             name = "Historical & Forecast",
+             lineStyle = list(color = "#0B78A0", width = 3),
+             itemStyle = list(color = "#0B78A0"),
+             symbol = "circle",
+             symbolSize = 8) %>%
+      e_area_(c("lower", "upper"),
+              name = "95% Confidence Interval",
+              stack = "confidence",
+              itemStyle = list(color = "rgba(2, 132, 199, 0.2)"),
+              lineStyle = list(opacity = 0),
+              areaStyle = list(opacity = 0.3)) %>%
+      e_tooltip(trigger = "axis") %>%
+      e_x_axis(name = "Year", type = "category") %>%
+      e_y_axis(name = var_display, type = "value") %>%
+      e_legend(show = TRUE, top = "8%") %>%
+      e_title(
+        text = paste("School Type Percentages Forecast - Random Forest ML Model"),
+        left = "center",
+        top = "2%",
+        textStyle = list(fontSize = 18, fontWeight = "bold", color = "#0B78A0")
+      ) %>%
+      e_grid(left = "10%", right = "10%", bottom = "15%", top = "20%") %>%
+      e_datazoom(type = "slider", start = 0, end = 100)
+  })
+  
+  # School Type Percentages ML Metrics
+  output$health_school_type_ml_metrics <- renderUI({
+    req(input$health_school_type_forecast_variable)
+    
+    if(!exists('Rwanda_schools')) return(HTML("No data available"))
+    
+    df <- as.data.frame(Rwanda_schools)
+    if ("Year" %in% names(df)) names(df)[names(df) == "Year"] <- "year"
+    if ("year" %in% names(df)) {
+      df <- df[order(as.numeric(df$year), decreasing = FALSE), ]
+    }
+    
+    var_name <- input$health_school_type_forecast_variable
+    if (!var_name %in% names(df)) return(HTML("<p style='color:red;'>Variable not found</p>"))
+    
+    forecast_data <- create_random_forest_forecast(df, var_name)
+    if (!is.null(forecast_data$error)) {
+      return(HTML(paste0("<p style='color:red;'>Error: ", forecast_data$error, "</p>")))
+    }
+    
+    m <- forecast_data$metrics
+    HTML(paste0(
+      "<div style='font-size:12px; line-height:1.8;'>",
+      "<strong>Model:</strong> Random Forest ML<br><br>",
+      "<strong>Performance Metrics:</strong><br>",
+      "R²: ", sprintf("%.3f", m$r_squared), "<br>",
+      "RMSE: ", sprintf("%.2f", m$rmse), "<br>",
+      "MAE: ", sprintf("%.2f", m$mae), "<br><br>",
+      "<strong>Diagnostics:</strong><br>",
+      "Std Dev: ", sprintf("%.2f", m$std_dev), "<br>",
+      "Variance: ", sprintf("%.2f", m$variance),
+      "</div>"
+    ))
+  })
+  
+  # School Type Percentages ML Interpretation
+  output$health_school_type_ml_interpretation <- renderUI({
+    req(input$health_school_type_forecast_variable)
+    
+    if(!exists('Rwanda_schools')) return(HTML("No data available"))
+    
+    df <- as.data.frame(Rwanda_schools)
+    if ("Year" %in% names(df)) names(df)[names(df) == "Year"] <- "year"
+    if ("year" %in% names(df)) {
+      df <- df[order(as.numeric(df$year), decreasing = FALSE), ]
+    }
+    
+    var_name <- input$health_school_type_forecast_variable
+    if (!var_name %in% names(df)) return(HTML("<p style='color:red;'>Variable not found</p>"))
+    
+    forecast_data <- create_random_forest_forecast(df, var_name)
+    if (!is.null(forecast_data$error)) {
+      return(HTML(paste0("<p style='color:red;'>Error: ", forecast_data$error, "</p>")))
+    }
+    
+    next_year_forecast <- forecast_data$forecast_value
+    current_value <- forecast_data$current_value
+    lower_ci <- forecast_data$f_lower[1]
+    upper_ci <- forecast_data$f_upper[1]
+    
+    var_imp <- importance(forecast_data$model)
+    top_var <- rownames(var_imp)[which.max(var_imp[, "%IncMSE"])]
+    
+    var_display <- gsub('_', ' ', tools::toTitleCase(var_name))
+    
+    interpretation <- sprintf(
+      "The Random Forest ML model forecasts Rwanda's %s to be %.2f%% in the next year (95%% CI: %.2f%% to %.2f%%). This model, which considers multiple factors and their interactions, suggests %s. The most influential factor in this prediction was '%s'.",
+      var_display, next_year_forecast, lower_ci, upper_ci,
+      if(next_year_forecast > current_value) "a continued upward trend" else "a potential stabilization or slight decline",
+      gsub('_', ' ', tools::toTitleCase(top_var))
+    )
+    
+    HTML(paste0("<div style='font-size:13px; line-height:1.6; color:#475569;'>", interpretation, "</div>"))
+  })
+  
+  # Health Indicators ML Chart (Random Forest) - echarts4r
+  output$health_indicators_ml_chart <- renderEcharts4r({
+    req(input$health_indicators_forecast_variable)
+    
+    if(!exists('Rwanda_health')) return(e_charts() %>% e_title("No data available"))
+    
+    df <- as.data.frame(Rwanda_health)
+    
+    # Normalize column names
+    if ("Year" %in% names(df)) names(df)[names(df) == "Year"] <- "year"
+    if ("year" %in% names(df)) {
+      df <- df[order(as.numeric(df$year), decreasing = FALSE), ]
+    }
+    
+    var_name <- input$health_indicators_forecast_variable
+    if (!var_name %in% names(df)) return(e_charts() %>% e_title("Variable not found"))
+    
+    forecast_data <- create_random_forest_forecast(df, var_name, forecast_years = 5)
+    
+    if (!is.null(forecast_data$error)) {
+      return(e_charts() %>% e_title(paste("Error:", forecast_data$error)))
+    }
+    
+    var_display <- gsub('_', ' ', tools::toTitleCase(var_name))
+    
+    # Combine historical and forecast data
+    all_years <- c(forecast_data$hist_years, forecast_data$f_years)
+    all_values <- c(forecast_data$hist_values, forecast_data$f_mean)
+    all_lower <- c(rep(NA, length(forecast_data$hist_values)), forecast_data$f_lower)
+    all_upper <- c(rep(NA, length(forecast_data$hist_values)), forecast_data$f_upper)
+    
+    chart_data <- data.frame(
+      year = all_years,
+      value = all_values,
+      lower = all_lower,
+      upper = all_upper
+    )
+    
+    chart_data %>%
+      e_charts(year) %>%
+      e_line(value, 
+             name = "Historical & Forecast",
+             lineStyle = list(color = "#0B78A0", width = 3),
+             itemStyle = list(color = "#0B78A0"),
+             symbol = "circle",
+             symbolSize = 8) %>%
+      e_area_(c("lower", "upper"),
+              name = "95% Confidence Interval",
+              stack = "confidence",
+              itemStyle = list(color = "rgba(2, 132, 199, 0.2)"),
+              lineStyle = list(opacity = 0),
+              areaStyle = list(opacity = 0.3)) %>%
+      e_tooltip(trigger = "axis") %>%
+      e_x_axis(name = "Year", type = "category") %>%
+      e_y_axis(name = var_display, type = "value") %>%
+      e_legend(show = TRUE, top = "8%") %>%
+      e_title(
+        text = paste("Health Indicators Forecast - Random Forest ML Model"),
+        left = "center",
+        top = "2%",
+        textStyle = list(fontSize = 18, fontWeight = "bold", color = "#0B78A0")
+      ) %>%
+      e_grid(left = "10%", right = "10%", bottom = "15%", top = "20%") %>%
+      e_datazoom(type = "slider", start = 0, end = 100)
+  })
+  
+  # Health Indicators ML Metrics
+  output$health_indicators_ml_metrics <- renderUI({
+    req(input$health_indicators_forecast_variable)
+    
+    if(!exists('Rwanda_health')) return(HTML("No data available"))
+    
+    df <- as.data.frame(Rwanda_health)
+    if ("Year" %in% names(df)) names(df)[names(df) == "Year"] <- "year"
+    if ("year" %in% names(df)) {
+      df <- df[order(as.numeric(df$year), decreasing = FALSE), ]
+    }
+    
+    var_name <- input$health_indicators_forecast_variable
+    if (!var_name %in% names(df)) return(HTML("<p style='color:red;'>Variable not found</p>"))
+    
+    forecast_data <- create_random_forest_forecast(df, var_name)
+    if (!is.null(forecast_data$error)) {
+      return(HTML(paste0("<p style='color:red;'>Error: ", forecast_data$error, "</p>")))
+    }
+    
+    m <- forecast_data$metrics
+    HTML(paste0(
+      "<div style='font-size:12px; line-height:1.8;'>",
+      "<strong>Model:</strong> Random Forest ML<br><br>",
+      "<strong>Performance Metrics:</strong><br>",
+      "R²: ", sprintf("%.3f", m$r_squared), "<br>",
+      "RMSE: ", sprintf("%.2f", m$rmse), "<br>",
+      "MAE: ", sprintf("%.2f", m$mae), "<br><br>",
+      "<strong>Diagnostics:</strong><br>",
+      "Std Dev: ", sprintf("%.2f", m$std_dev), "<br>",
+      "Variance: ", sprintf("%.2f", m$variance),
+      "</div>"
+    ))
+  })
+  
+  # Health Indicators ML Interpretation
+  output$health_indicators_ml_interpretation <- renderUI({
+    req(input$health_indicators_forecast_variable)
+    
+    if(!exists('Rwanda_health')) return(HTML("No data available"))
+    
+    df <- as.data.frame(Rwanda_health)
+    if ("Year" %in% names(df)) names(df)[names(df) == "Year"] <- "year"
+    if ("year" %in% names(df)) {
+      df <- df[order(as.numeric(df$year), decreasing = FALSE), ]
+    }
+    
+    var_name <- input$health_indicators_forecast_variable
+    if (!var_name %in% names(df)) return(HTML("<p style='color:red;'>Variable not found</p>"))
+    
+    forecast_data <- create_random_forest_forecast(df, var_name)
+    if (!is.null(forecast_data$error)) {
+      return(HTML(paste0("<p style='color:red;'>Error: ", forecast_data$error, "</p>")))
+    }
+    
+    next_year_forecast <- forecast_data$forecast_value
+    current_value <- forecast_data$current_value
+    lower_ci <- forecast_data$f_lower[1]
+    upper_ci <- forecast_data$f_upper[1]
+    
+    var_imp <- importance(forecast_data$model)
+    top_var <- rownames(var_imp)[which.max(var_imp[, "%IncMSE"])]
+    
+    var_display <- gsub('_', ' ', tools::toTitleCase(var_name))
+    
+    interpretation <- sprintf(
+      "The Random Forest ML model forecasts Rwanda's %s to be %.2f in the next year (95%% CI: %.2f to %.2f). This model, which considers multiple factors and their interactions, suggests %s. The most influential factor in this prediction was '%s'.",
+      var_display, next_year_forecast, lower_ci, upper_ci,
+      if(next_year_forecast > current_value) "a continued upward trend" else "a potential stabilization or slight decline",
+      gsub('_', ' ', tools::toTitleCase(top_var))
+    )
+    
+    HTML(paste0("<div style='font-size:13px; line-height:1.6; color:#475569;'>", interpretation, "</div>"))
+  })
+  
+  # Old ARIMA outputs (kept for backward compatibility but not used)
   output$health_school_type_forecast_chart <- renderPlotly({
     req(input$health_school_type_forecast_variable, input$health_school_type_forecast_model)
     
@@ -5854,14 +7536,14 @@ server <- function(input, output, session) {
         x = forecast_data$f_years,
         y = forecast_data$f_mean,
         name = 'Forecast (mean)',
-        marker = list(color = '#157A4A', opacity = 0.8)
+        marker = list(color = '#0284c7', opacity = 0.8)
       ) %>%
       add_ribbons(
         x = forecast_data$f_years,
         ymin = forecast_data$f_lower,
         ymax = forecast_data$f_upper,
         name = '95% CI',
-        fillcolor = 'rgba(21, 122, 74, 0.2)',
+        fillcolor = 'rgba(2, 132, 199, 0.2)',
         line = list(color = 'transparent')
       ) %>%
       layout(
@@ -6048,14 +7730,14 @@ server <- function(input, output, session) {
         x = forecast_data$f_years,
         y = forecast_data$f_mean,
         name = 'Forecast (mean)',
-        marker = list(color = '#157A4A', opacity = 0.8)
+        marker = list(color = '#0284c7', opacity = 0.8)
       ) %>%
       add_ribbons(
         x = forecast_data$f_years,
         ymin = forecast_data$f_lower,
         ymax = forecast_data$f_upper,
         name = '95% CI',
-        fillcolor = 'rgba(21, 122, 74, 0.2)',
+        fillcolor = 'rgba(2, 132, 199, 0.2)',
         line = list(color = 'transparent')
       ) %>%
       layout(
@@ -6193,6 +7875,228 @@ server <- function(input, output, session) {
     })
   })
 
+  # Helper function to create Prophet forecast (for time series data)
+  create_prophet_forecast <- function(data, variable, forecast_years = 5) {
+    tryCatch({
+      # Get data values
+      values <- as.numeric(data[[variable]])
+      years <- if("year" %in% names(data)) as.numeric(data$year) else if("Year" %in% names(data)) as.numeric(data$Year) else seq_along(values)
+      
+      # Remove NA values
+      valid_idx <- !is.na(values) & !is.na(years)
+      values <- values[valid_idx]
+      years <- years[valid_idx]
+      
+      if(length(values) < 4) {
+        return(list(error = "Insufficient data for forecasting (minimum 4 observations required)"))
+      }
+      
+      # Sort by year to ensure proper time series order
+      sort_idx <- order(years)
+      years <- years[sort_idx]
+      values <- values[sort_idx]
+      
+      # Remove any remaining invalid values
+      valid_final <- !is.na(values) & is.finite(values)
+      if(sum(valid_final) < 4) {
+        return(list(error = "Insufficient valid data for forecasting"))
+      }
+      years <- years[valid_final]
+      values <- values[valid_final]
+      
+      # Prepare data for Prophet (requires 'ds' and 'y' columns)
+      # Convert years to dates (Prophet works best with daily data, but we'll use yearly)
+      prophet_data <- data.frame(
+        ds = as.Date(paste0(years, "-01-01")),
+        y = values
+      )
+      
+      # Fit Prophet model
+      model <- prophet(prophet_data, yearly.seasonality = TRUE, weekly.seasonality = FALSE, daily.seasonality = FALSE)
+      
+      # Create future dataframe
+      future <- make_future_dataframe(model, periods = forecast_years, freq = 'year')
+      
+      # Generate forecast
+      forecast_result <- predict(model, future)
+      
+      # Extract historical and forecast data
+      hist_years <- years
+      hist_values <- values
+      f_years <- (max(years) + 1):(max(years) + forecast_years)
+      
+      # Get forecast values (last forecast_years rows)
+      forecast_rows <- tail(forecast_result, forecast_years)
+      f_mean <- forecast_rows$yhat
+      f_lower <- forecast_rows$yhat_lower
+      f_upper <- forecast_rows$yhat_upper
+      
+      # Calculate metrics using cross-validation
+      # For simplicity, use training residuals
+      training_forecast <- forecast_result[1:length(hist_values), ]
+      residuals <- hist_values - training_forecast$yhat
+      rmse <- sqrt(mean(residuals^2, na.rm = TRUE))
+      mae <- mean(abs(residuals), na.rm = TRUE)
+      variance <- var(residuals, na.rm = TRUE)
+      std_dev <- sd(residuals, na.rm = TRUE)
+      
+      # AIC/BIC approximation (Prophet doesn't provide these directly)
+      # Using log-likelihood approximation
+      n <- length(hist_values)
+      log_lik <- -0.5 * n * log(2 * pi * variance) - 0.5 * sum((residuals^2) / variance, na.rm = TRUE)
+      aic <- -2 * log_lik + 2 * 10  # Approximate with 10 parameters
+      bic <- -2 * log_lik + log(n) * 10
+      
+      return(list(
+        hist_years = hist_years,
+        hist_values = hist_values,
+        f_years = f_years,
+        f_mean = f_mean,
+        f_lower = f_lower,
+        f_upper = f_upper,
+        model = model,
+        used_prophet = TRUE,
+        metrics = list(aic = aic, bic = bic, rmse = rmse, mae = mae, variance = variance, std_dev = std_dev),
+        current_value = tail(values, 1),
+        forecast_value = f_mean[1],
+        change = f_mean[1] - tail(values, 1),
+        change_pct = ((f_mean[1] - tail(values, 1)) / tail(values, 1)) * 100
+      ))
+    }, error = function(e) {
+      return(list(error = paste("Prophet forecast error:", e$message)))
+    })
+  }
+  
+  # Helper function to create Random Forest forecast/prediction
+  create_random_forest_forecast <- function(data, target_variable, forecast_years = 5) {
+    tryCatch({
+      # Get data values
+      if(!target_variable %in% names(data)) {
+        return(list(error = paste("Variable", target_variable, "not found in data")))
+      }
+      
+      values <- as.numeric(data[[target_variable]])
+      years <- if("year" %in% names(data)) as.numeric(data$year) else if("Year" %in% names(data)) as.numeric(data$Year) else seq_along(values)
+      
+      # Remove NA values
+      valid_idx <- !is.na(values) & !is.na(years) & is.finite(values)
+      values <- values[valid_idx]
+      years <- years[valid_idx]
+      
+      if(length(values) < 5) {
+        return(list(error = "Insufficient data for Random Forest (minimum 5 observations required)"))
+      }
+      
+      # Sort by year
+      sort_idx <- order(years)
+      years <- years[sort_idx]
+      values <- values[sort_idx]
+      
+      # Create features for Random Forest
+      # Use lagged values and time-based features
+      n <- length(values)
+      if(n < 5) {
+        return(list(error = "Insufficient data for Random Forest"))
+      }
+      
+      # Create feature matrix
+      feature_data <- data.frame(
+        year = years,
+        value_lag1 = c(NA, head(values, -1)),
+        value_lag2 = c(NA, NA, head(values, -2)),
+        value_lag3 = c(NA, NA, NA, head(values, -3)),
+        trend = 1:n,
+        year_squared = years^2
+      )
+      
+      # Remove rows with NA (first few rows)
+      valid_rows <- complete.cases(feature_data)
+      feature_data <- feature_data[valid_rows, ]
+      target_values <- values[valid_rows]
+      
+      if(nrow(feature_data) < 3) {
+        return(list(error = "Insufficient valid data after feature engineering"))
+      }
+      
+      # Fit Random Forest model
+      rf_model <- randomForest(
+        x = feature_data[, c("value_lag1", "value_lag2", "value_lag3", "trend", "year_squared")],
+        y = target_values,
+        ntree = 500,
+        mtry = 3,
+        importance = TRUE
+      )
+      
+      # Generate forecasts
+      hist_years <- years[valid_rows]
+      hist_values <- target_values
+      f_years <- (max(hist_years) + 1):(max(hist_years) + forecast_years)
+      
+      # Predict future values using recursive approach
+      f_mean <- numeric(forecast_years)
+      f_lower <- numeric(forecast_years)
+      f_upper <- numeric(forecast_years)
+      
+      last_values <- tail(values, 3)
+      last_year <- max(hist_years)
+      
+      for(i in 1:forecast_years) {
+        future_features <- data.frame(
+          year = last_year + i,
+          value_lag1 = if(i == 1) last_values[3] else f_mean[i-1],
+          value_lag2 = if(i == 1) last_values[2] else if(i == 2) last_values[3] else f_mean[i-2],
+          value_lag3 = if(i <= 3) last_values[4-i] else f_mean[i-3],
+          trend = n + i,
+          year_squared = (last_year + i)^2
+        )
+        
+        pred <- predict(rf_model, newdata = future_features)
+        f_mean[i] <- pred
+        
+        # Estimate confidence intervals using model residuals
+        residuals <- rf_model$predicted - target_values
+        rmse <- sqrt(mean(residuals^2, na.rm = TRUE))
+        f_lower[i] <- pred - 1.96 * rmse
+        f_upper[i] <- pred + 1.96 * rmse
+      }
+      
+      # Calculate metrics
+      predictions <- rf_model$predicted
+      residuals <- predictions - target_values
+      rmse <- sqrt(mean(residuals^2, na.rm = TRUE))
+      mae <- mean(abs(residuals), na.rm = TRUE)
+      variance <- var(residuals, na.rm = TRUE)
+      std_dev <- sd(residuals, na.rm = TRUE)
+      
+      # R-squared
+      ss_res <- sum(residuals^2)
+      ss_tot <- sum((target_values - mean(target_values))^2)
+      r_squared <- 1 - (ss_res / ss_tot)
+      
+      # Variable importance
+      importance_scores <- importance(rf_model)
+      
+      return(list(
+        hist_years = hist_years,
+        hist_values = hist_values,
+        f_years = f_years,
+        f_mean = f_mean,
+        f_lower = f_lower,
+        f_upper = f_upper,
+        model = rf_model,
+        used_rf = TRUE,
+        metrics = list(rmse = rmse, mae = mae, r_squared = r_squared, variance = variance, std_dev = std_dev),
+        importance = importance_scores,
+        current_value = tail(hist_values, 1),
+        forecast_value = f_mean[1],
+        change = f_mean[1] - tail(hist_values, 1),
+        change_pct = ((f_mean[1] - tail(hist_values, 1)) / tail(hist_values, 1)) * 100
+      ))
+    }, error = function(e) {
+      return(list(error = paste("Random Forest forecast error:", e$message)))
+    })
+  }
+  
   # Helper function to create ARIMA forecast
   create_arima_forecast <- function(data, variable, model_type, forecast_years = 5) {
     tryCatch({
@@ -6309,12 +8213,13 @@ server <- function(input, output, session) {
   }
   
   # Population Forecast Chart
-  output$dem_pop_forecast_chart <- renderPlotly({
-    req(input$dem_pop_forecast_variable, input$dem_pop_forecast_model)
+  # Population ML Chart (Random Forest) - echarts4r
+  output$dem_pop_ml_chart <- renderEcharts4r({
+    req(input$dem_pop_forecast_variable)
     
     pop_data <- load_population_data()
     if (is.null(pop_data) || !is.data.frame(pop_data) || nrow(pop_data) == 0) {
-      return(plotly_empty() %>% layout(title = "No data available"))
+      return(e_charts() %>% e_title("No data available"))
     }
     
     # Normalize column names
@@ -6323,7 +8228,6 @@ server <- function(input, output, session) {
     # Get variable name
     var_name <- input$dem_pop_forecast_variable
     if (!var_name %in% names(pop_data)) {
-      # Try to find similar column
       if (var_name == "population_millions") {
         numeric_cols <- names(pop_data)[sapply(pop_data, is.numeric) & names(pop_data) != "year"]
         if (length(numeric_cols) > 0) var_name <- numeric_cols[1]
@@ -6333,56 +8237,143 @@ server <- function(input, output, session) {
       }
     }
     
-    forecast_data <- create_arima_forecast(pop_data, var_name, input$dem_pop_forecast_model)
+    # Generate Random Forest forecast
+    forecast_data <- create_random_forest_forecast(pop_data, var_name, forecast_years = 5)
     
     if (!is.null(forecast_data$error)) {
-      return(plotly_empty() %>% layout(title = paste("Error:", forecast_data$error)))
+      return(e_charts() %>% e_title(paste("Error:", forecast_data$error)))
     }
     
-    # Create plot
     var_display <- if(input$dem_pop_forecast_variable == "population_millions") "Population (Millions)" else "Growth Rate (%)"
-    if (!is.null(forecast_data$used_auto) && forecast_data$used_auto) {
-      model_display <- paste("ARIMA", paste(forecast_data$model$arma[c(1,6,2)], collapse=","), sep="")
-    } else {
-      model_display <- if(input$dem_pop_forecast_model == "arima111") "ARIMA(1,1,1)" else "ARIMA(2,1,2)"
+    
+    # Combine historical and forecast data
+    all_years <- c(forecast_data$hist_years, forecast_data$f_years)
+    all_values <- c(forecast_data$hist_values, forecast_data$f_mean)
+    all_lower <- c(rep(NA, length(forecast_data$hist_values)), forecast_data$f_lower)
+    all_upper <- c(rep(NA, length(forecast_data$hist_values)), forecast_data$f_upper)
+    
+    chart_data <- data.frame(
+      year = all_years,
+      value = all_values,
+      lower = all_lower,
+      upper = all_upper
+    )
+    
+    chart_data %>%
+      e_charts(year) %>%
+      e_line(value, 
+             name = "Historical & Forecast",
+             lineStyle = list(color = "#0B78A0", width = 3),
+             itemStyle = list(color = "#0B78A0"),
+             symbol = "circle",
+             symbolSize = 8) %>%
+      e_area_(c("lower", "upper"),
+              name = "95% Confidence Interval",
+              stack = "confidence",
+              itemStyle = list(color = "rgba(2, 132, 199, 0.2)"),
+              lineStyle = list(opacity = 0),
+              areaStyle = list(opacity = 0.3)) %>%
+      e_tooltip(trigger = "axis") %>%
+      e_x_axis(name = "Year", type = "category") %>%
+      e_y_axis(name = var_display, type = "value") %>%
+      e_legend(show = TRUE, top = "8%") %>%
+      e_title(
+        text = paste("Population Forecast - Random Forest ML Model"),
+        left = "center",
+        top = "2%",
+        textStyle = list(fontSize = 18, fontWeight = "bold", color = "#0B78A0")
+      ) %>%
+      e_grid(left = "10%", right = "10%", bottom = "15%", top = "20%") %>%
+      e_datazoom(type = "slider", start = 0, end = 100)
+  })
+  
+  # Population ML Metrics
+  output$dem_pop_ml_metrics <- renderUI({
+    req(input$dem_pop_forecast_variable)
+    
+    pop_data <- load_population_data()
+    if (is.null(pop_data)) return(HTML("No data available"))
+    
+    if ("Year" %in% names(pop_data)) names(pop_data)[names(pop_data) == "Year"] <- "year"
+    
+    var_name <- input$dem_pop_forecast_variable
+    if (var_name == "population_millions") {
+      if ("population_millions" %in% names(pop_data)) {
+        var_name <- "population_millions"
+      } else {
+        pop_cols <- names(pop_data)[grepl('population|pop', names(pop_data), ignore.case = TRUE) & sapply(pop_data, is.numeric)]
+        if (length(pop_cols) > 0) var_name <- pop_cols[1]
+      }
+    } else if (var_name == "population_growth_rate_percent") {
+      growth_cols <- names(pop_data)[grepl('growth|rate', names(pop_data), ignore.case = TRUE) & sapply(pop_data, is.numeric)]
+      if (length(growth_cols) > 0) var_name <- growth_cols[1]
     }
     
-    p <- plot_ly() %>%
-      add_bars(
-        x = forecast_data$hist_years,
-        y = forecast_data$hist_values,
-        name = 'Historical',
-        marker = list(color = '#1e40af', opacity = 0.8)
-      ) %>%
-      add_bars(
-        x = forecast_data$f_years,
-        y = forecast_data$f_mean,
-        name = 'Forecast (mean)',
-        marker = list(color = '#157A4A', opacity = 0.8)
-      ) %>%
-      add_ribbons(
-        x = forecast_data$f_years,
-        ymin = forecast_data$f_lower,
-        ymax = forecast_data$f_upper,
-        name = '95% CI',
-        fillcolor = 'rgba(21, 122, 74, 0.2)',
-        line = list(color = 'transparent')
-      ) %>%
-      layout(
-        title = list(
-          text = paste(var_display, '- Historical & Forecast -', model_display),
-          font = list(size = 18, color = '#1e40af')
-        ),
-        xaxis = list(title = 'Year', tickmode = 'linear', dtick = 1),
-        yaxis = list(title = var_display, rangemode = 'tozero'),
-        barmode = 'group',
-        hovermode = 'x unified',
-        showlegend = TRUE,
-        plot_bgcolor = '#ffffff',
-        paper_bgcolor = '#ffffff'
-      )
+    forecast_data <- create_random_forest_forecast(pop_data, var_name)
+    if (!is.null(forecast_data$error)) {
+      return(HTML(paste0("<p style='color:red;'>Error: ", forecast_data$error, "</p>")))
+    }
     
-    return(p)
+    m <- forecast_data$metrics
+    HTML(paste0(
+      "<div style='font-size:12px; line-height:1.8;'>",
+      "<strong>Model:</strong> Random Forest ML<br><br>",
+      "<strong>Performance Metrics:</strong><br>",
+      "R²: ", sprintf("%.3f", m$r_squared), "<br>",
+      "RMSE: ", sprintf("%.2f", m$rmse), "<br>",
+      "MAE: ", sprintf("%.2f", m$mae), "<br><br>",
+      "<strong>Diagnostics:</strong><br>",
+      "Std Dev: ", sprintf("%.2f", m$std_dev), "<br>",
+      "Variance: ", sprintf("%.2f", m$variance),
+      "</div>"
+    ))
+  })
+  
+  # Population ML Interpretation
+  output$dem_pop_ml_interpretation <- renderUI({
+    req(input$dem_pop_forecast_variable)
+    
+    pop_data <- load_population_data()
+    if (is.null(pop_data)) return(HTML("No data available"))
+    
+    if ("Year" %in% names(pop_data)) names(pop_data)[names(pop_data) == "Year"] <- "year"
+    
+    var_name <- input$dem_pop_forecast_variable
+    if (var_name == "population_millions") {
+      if ("population_millions" %in% names(pop_data)) {
+        var_name <- "population_millions"
+      } else {
+        pop_cols <- names(pop_data)[grepl('population|pop', names(pop_data), ignore.case = TRUE) & sapply(pop_data, is.numeric)]
+        if (length(pop_cols) > 0) var_name <- pop_cols[1]
+      }
+    } else if (var_name == "population_growth_rate_percent") {
+      growth_cols <- names(pop_data)[grepl('growth|rate', names(pop_data), ignore.case = TRUE) & sapply(pop_data, is.numeric)]
+      if (length(growth_cols) > 0) var_name <- growth_cols[1]
+    }
+    
+    forecast_data <- create_random_forest_forecast(pop_data, var_name)
+    if (!is.null(forecast_data$error)) {
+      return(HTML(paste0("<p style='color:red;'>Error: ", forecast_data$error, "</p>")))
+    }
+    
+    next_year_forecast <- forecast_data$forecast_value
+    current_value <- forecast_data$current_value
+    lower_ci <- forecast_data$f_lower[1]
+    upper_ci <- forecast_data$f_upper[1]
+    
+    var_imp <- importance(forecast_data$model)
+    top_var <- rownames(var_imp)[which.max(var_imp[, "%IncMSE"])]
+    
+    var_display <- if(input$dem_pop_forecast_variable == "population_millions") "population" else "population growth rate"
+    
+    interpretation <- sprintf(
+      "The Random Forest ML model forecasts Rwanda's %s to be %.2f in the next year (95%% CI: %.2f to %.2f). This model, which considers multiple factors and their interactions, suggests %s. The most influential factor in this prediction was '%s'.",
+      var_display, next_year_forecast, lower_ci, upper_ci,
+      if(next_year_forecast > current_value) "a continued upward trend" else "a potential stabilization or slight decline",
+      gsub('_', ' ', tools::toTitleCase(top_var))
+    )
+    
+    HTML(paste0("<div style='font-size:13px; line-height:1.6; color:#475569;'>", interpretation, "</div>"))
   })
   
   # Population Forecast Metrics
@@ -6440,25 +8431,42 @@ server <- function(input, output, session) {
     }
     
     m <- forecast_data$metrics
-    model_info <- if(!is.null(forecast_data$used_auto) && forecast_data$used_auto) {
+    model_info <- if(!is.null(forecast_data$used_rf) && forecast_data$used_rf) {
+      "Random Forest"
+    } else if(!is.null(forecast_data$used_auto) && forecast_data$used_auto) {
       paste("Auto-selected ARIMA", paste(forecast_data$model$arma[c(1,6,2)], collapse=","), sep="")
     } else {
       if(input$dem_pop_forecast_model == "arima111") "ARIMA(1,1,1)" else "ARIMA(2,1,2)"
     }
     
-    metrics_text <- paste0(
-      "<div style='font-size:12px; line-height:1.8;'>",
-      "<strong>Model:</strong> ", model_info, "<br><br>",
-      "<strong>Model Performance Metrics:</strong><br>",
-      "AIC: ", sprintf("%.2f", m$aic), "<br>",
-      "BIC: ", sprintf("%.2f", m$bic), "<br>",
-      "RMSE: ", sprintf("%.2f", m$rmse), "<br>",
-      "MAE: ", sprintf("%.2f", m$mae), "<br><br>",
-      "<strong>Model Diagnostics:</strong><br>",
-      "Variance: ", sprintf("%.2f", m$variance), "<br>",
-      "Std Dev: ", sprintf("%.2f", m$std_dev),
-      "</div>"
-    )
+    if(!is.null(forecast_data$used_rf) && forecast_data$used_rf) {
+      metrics_text <- paste0(
+        "<div style='font-size:12px; line-height:1.8;'>",
+        "<strong>Model:</strong> ", model_info, "<br><br>",
+        "<strong>Model Performance Metrics:</strong><br>",
+        "R²: ", sprintf("%.3f", m$r_squared), "<br>",
+        "RMSE: ", sprintf("%.2f", m$rmse), "<br>",
+        "MAE: ", sprintf("%.2f", m$mae), "<br><br>",
+        "<strong>Model Diagnostics:</strong><br>",
+        "Variance: ", sprintf("%.2f", m$variance), "<br>",
+        "Std Dev: ", sprintf("%.2f", m$std_dev),
+        "</div>"
+      )
+    } else {
+      metrics_text <- paste0(
+        "<div style='font-size:12px; line-height:1.8;'>",
+        "<strong>Model:</strong> ", model_info, "<br><br>",
+        "<strong>Model Performance Metrics:</strong><br>",
+        "AIC: ", sprintf("%.2f", m$aic), "<br>",
+        "BIC: ", sprintf("%.2f", m$bic), "<br>",
+        "RMSE: ", sprintf("%.2f", m$rmse), "<br>",
+        "MAE: ", sprintf("%.2f", m$mae), "<br><br>",
+        "<strong>Model Diagnostics:</strong><br>",
+        "Variance: ", sprintf("%.2f", m$variance), "<br>",
+        "Std Dev: ", sprintf("%.2f", m$std_dev),
+        "</div>"
+      )
+    }
     return(HTML(metrics_text))
   })
   
@@ -6573,63 +8581,127 @@ server <- function(input, output, session) {
     )
   })
   
-  # Labor Force Forecast Chart
-  output$dem_labor_forecast_chart <- renderPlotly({
-    req(input$dem_labor_forecast_variable, input$dem_labor_forecast_model)
+  # Labor Force ML Chart (Random Forest) - echarts4r
+  output$dem_labor_ml_chart <- renderEcharts4r({
+    req(input$dem_labor_forecast_variable)
     
     labor_data <- load_labor_force_data()
     if (is.null(labor_data) || !is.data.frame(labor_data) || nrow(labor_data) == 0) {
-      return(plotly_empty() %>% layout(title = "No data available"))
+      return(e_charts() %>% e_title("No data available"))
     }
     
     if ("Year" %in% names(labor_data)) names(labor_data)[names(labor_data) == "Year"] <- "year"
     
-    forecast_data <- create_arima_forecast(labor_data, input$dem_labor_forecast_variable, input$dem_labor_forecast_model)
+    forecast_data <- create_random_forest_forecast(labor_data, input$dem_labor_forecast_variable, forecast_years = 5)
     
     if (!is.null(forecast_data$error)) {
-      return(plotly_empty() %>% layout(title = paste("Error:", forecast_data$error)))
+      return(e_charts() %>% e_title(paste("Error:", forecast_data$error)))
     }
     
-    var_display <- gsub('_', ' ', input$dem_labor_forecast_variable)
-    var_display <- tools::toTitleCase(var_display)
-    model_display <- if(input$dem_labor_forecast_model == "arima111") "ARIMA(1,1,1)" else "ARIMA(2,1,2)"
+    var_display <- gsub('_', ' ', tools::toTitleCase(input$dem_labor_forecast_variable))
     
-    p <- plot_ly() %>%
-      add_bars(
-        x = forecast_data$hist_years,
-        y = forecast_data$hist_values,
-        name = 'Historical',
-        marker = list(color = '#1e40af', opacity = 0.8)
-      ) %>%
-      add_bars(
-        x = forecast_data$f_years,
-        y = forecast_data$f_mean,
-        name = 'Forecast (mean)',
-        marker = list(color = '#157A4A', opacity = 0.8)
-      ) %>%
-      add_ribbons(
-        x = forecast_data$f_years,
-        ymin = forecast_data$f_lower,
-        ymax = forecast_data$f_upper,
-        name = '95% CI',
-        fillcolor = 'rgba(21, 122, 74, 0.2)',
-        line = list(color = 'transparent')
-      ) %>%
-      layout(
-        title = list(
-          text = paste(var_display, '- Historical & Forecast -', model_display),
-          font = list(size = 18, color = '#1e40af')
-        ),
-        xaxis = list(title = 'Year', tickmode = 'linear', dtick = 1),
-        yaxis = list(title = var_display, rangemode = 'tozero'),
-        barmode = 'group',
-        hovermode = 'x unified',
-        showlegend = TRUE,
-        plot_bgcolor = '#ffffff',
-        paper_bgcolor = '#ffffff'
-      )
+    # Combine historical and forecast data
+    all_years <- c(forecast_data$hist_years, forecast_data$f_years)
+    all_values <- c(forecast_data$hist_values, forecast_data$f_mean)
+    all_lower <- c(rep(NA, length(forecast_data$hist_values)), forecast_data$f_lower)
+    all_upper <- c(rep(NA, length(forecast_data$hist_values)), forecast_data$f_upper)
     
-    return(p)
+    chart_data <- data.frame(
+      year = all_years,
+      value = all_values,
+      lower = all_lower,
+      upper = all_upper
+    )
+    
+    chart_data %>%
+      e_charts(year) %>%
+      e_line(value, 
+             name = "Historical & Forecast",
+             lineStyle = list(color = "#0B78A0", width = 3),
+             itemStyle = list(color = "#0B78A0"),
+             symbol = "circle",
+             symbolSize = 8) %>%
+      e_area_(c("lower", "upper"),
+              name = "95% Confidence Interval",
+              stack = "confidence",
+              itemStyle = list(color = "rgba(2, 132, 199, 0.2)"),
+              lineStyle = list(opacity = 0),
+              areaStyle = list(opacity = 0.3)) %>%
+      e_tooltip(trigger = "axis") %>%
+      e_x_axis(name = "Year", type = "category") %>%
+      e_y_axis(name = var_display, type = "value") %>%
+      e_legend(show = TRUE, top = "8%") %>%
+      e_title(
+        text = paste("Labor Force Forecast - Random Forest ML Model"),
+        left = "center",
+        top = "2%",
+        textStyle = list(fontSize = 18, fontWeight = "bold", color = "#0B78A0")
+      ) %>%
+      e_grid(left = "10%", right = "10%", bottom = "15%", top = "20%") %>%
+      e_datazoom(type = "slider", start = 0, end = 100)
+  })
+  
+  # Labor Force ML Metrics
+  output$dem_labor_ml_metrics <- renderUI({
+    req(input$dem_labor_forecast_variable)
+    
+    labor_data <- load_labor_force_data()
+    if (is.null(labor_data)) return(HTML("No data available"))
+    
+    if ("Year" %in% names(labor_data)) names(labor_data)[names(labor_data) == "Year"] <- "year"
+    
+    forecast_data <- create_random_forest_forecast(labor_data, input$dem_labor_forecast_variable)
+    if (!is.null(forecast_data$error)) {
+      return(HTML(paste0("<p style='color:red;'>Error: ", forecast_data$error, "</p>")))
+    }
+    
+    m <- forecast_data$metrics
+    HTML(paste0(
+      "<div style='font-size:12px; line-height:1.8;'>",
+      "<strong>Model:</strong> Random Forest ML<br><br>",
+      "<strong>Performance Metrics:</strong><br>",
+      "R²: ", sprintf("%.3f", m$r_squared), "<br>",
+      "RMSE: ", sprintf("%.2f", m$rmse), "<br>",
+      "MAE: ", sprintf("%.2f", m$mae), "<br><br>",
+      "<strong>Diagnostics:</strong><br>",
+      "Std Dev: ", sprintf("%.2f", m$std_dev), "<br>",
+      "Variance: ", sprintf("%.2f", m$variance),
+      "</div>"
+    ))
+  })
+  
+  # Labor Force ML Interpretation
+  output$dem_labor_ml_interpretation <- renderUI({
+    req(input$dem_labor_forecast_variable)
+    
+    labor_data <- load_labor_force_data()
+    if (is.null(labor_data)) return(HTML("No data available"))
+    
+    if ("Year" %in% names(labor_data)) names(labor_data)[names(labor_data) == "Year"] <- "year"
+    
+    forecast_data <- create_random_forest_forecast(labor_data, input$dem_labor_forecast_variable)
+    if (!is.null(forecast_data$error)) {
+      return(HTML(paste0("<p style='color:red;'>Error: ", forecast_data$error, "</p>")))
+    }
+    
+    next_year_forecast <- forecast_data$forecast_value
+    current_value <- forecast_data$current_value
+    lower_ci <- forecast_data$f_lower[1]
+    upper_ci <- forecast_data$f_upper[1]
+    
+    var_imp <- importance(forecast_data$model)
+    top_var <- rownames(var_imp)[which.max(var_imp[, "%IncMSE"])]
+    
+    var_display <- gsub('_', ' ', tools::toTitleCase(input$dem_labor_forecast_variable))
+    
+    interpretation <- sprintf(
+      "The Random Forest ML model forecasts Rwanda's %s to be %.2f in the next year (95%% CI: %.2f to %.2f). This model, which considers multiple factors and their interactions, suggests %s. The most influential factor in this prediction was '%s'.",
+      var_display, next_year_forecast, lower_ci, upper_ci,
+      if(next_year_forecast > current_value) "a continued upward trend" else "a potential stabilization or slight decline",
+      gsub('_', ' ', tools::toTitleCase(top_var))
+    )
+    
+    HTML(paste0("<div style='font-size:13px; line-height:1.6; color:#475569;'>", interpretation, "</div>"))
   })
   
   # Labor Force Forecast Metrics
@@ -6704,6 +8776,147 @@ server <- function(input, output, session) {
   })
   
   # Agriculture GDP Forecast Chart
+  # Agriculture GDP ML Chart (Random Forest) - echarts4r
+  output$dem_agri_gdp_ml_chart <- renderEcharts4r({
+    agri_gdp_data <- load_agriculture_gdp_data()
+    if (is.null(agri_gdp_data) || !is.data.frame(agri_gdp_data) || nrow(agri_gdp_data) == 0) {
+      return(e_charts() %>% e_title("No data available"))
+    }
+    
+    if ("Year" %in% names(agri_gdp_data)) names(agri_gdp_data)[names(agri_gdp_data) == "Year"] <- "year"
+    
+    # Find percentage column
+    pct_cols <- names(agri_gdp_data)[grepl('percent|%|pct|agriculture|gdp', names(agri_gdp_data), ignore.case = TRUE) & sapply(agri_gdp_data, is.numeric)]
+    if (length(pct_cols) == 0) {
+      numeric_cols <- names(agri_gdp_data)[sapply(agri_gdp_data, is.numeric) & names(agri_gdp_data) != "year"]
+      if (length(numeric_cols) > 0) pct_col <- numeric_cols[1] else return(e_charts() %>% e_title("No percentage data found"))
+    } else {
+      pct_col <- pct_cols[1]
+    }
+    
+    forecast_data <- create_random_forest_forecast(agri_gdp_data, pct_col, forecast_years = 5)
+    
+    if (!is.null(forecast_data$error)) {
+      return(e_charts() %>% e_title(paste("Error:", forecast_data$error)))
+    }
+    
+    # Combine historical and forecast data
+    all_years <- c(forecast_data$hist_years, forecast_data$f_years)
+    all_values <- c(forecast_data$hist_values, forecast_data$f_mean)
+    all_lower <- c(rep(NA, length(forecast_data$hist_values)), forecast_data$f_lower)
+    all_upper <- c(rep(NA, length(forecast_data$hist_values)), forecast_data$f_upper)
+    
+    chart_data <- data.frame(
+      year = all_years,
+      value = all_values,
+      lower = all_lower,
+      upper = all_upper
+    )
+    
+    chart_data %>%
+      e_charts(year) %>%
+      e_line(value, 
+             name = "Historical & Forecast",
+             lineStyle = list(color = "#0B78A0", width = 3),
+             itemStyle = list(color = "#0B78A0"),
+             symbol = "circle",
+             symbolSize = 8) %>%
+      e_area_(c("lower", "upper"),
+              name = "95% Confidence Interval",
+              stack = "confidence",
+              itemStyle = list(color = "rgba(2, 132, 199, 0.2)"),
+              lineStyle = list(opacity = 0),
+              areaStyle = list(opacity = 0.3)) %>%
+      e_tooltip(trigger = "axis") %>%
+      e_x_axis(name = "Year", type = "category") %>%
+      e_y_axis(name = "Agriculture % to GDP", type = "value") %>%
+      e_legend(show = TRUE, top = "8%") %>%
+      e_title(
+        text = "Agriculture Contribution to GDP Forecast - Random Forest ML Model",
+        left = "center",
+        top = "2%",
+        textStyle = list(fontSize = 18, fontWeight = "bold", color = "#0B78A0")
+      ) %>%
+      e_grid(left = "10%", right = "10%", bottom = "15%", top = "20%") %>%
+      e_datazoom(type = "slider", start = 0, end = 100)
+  })
+  
+  # Agriculture GDP ML Metrics
+  output$dem_agri_gdp_ml_metrics <- renderUI({
+    agri_gdp_data <- load_agriculture_gdp_data()
+    if (is.null(agri_gdp_data)) return(HTML("No data available"))
+    
+    if ("Year" %in% names(agri_gdp_data)) names(agri_gdp_data)[names(agri_gdp_data) == "Year"] <- "year"
+    
+    # Find percentage column
+    pct_cols <- names(agri_gdp_data)[grepl('percent|%|pct|agriculture|gdp', names(agri_gdp_data), ignore.case = TRUE) & sapply(agri_gdp_data, is.numeric)]
+    if (length(pct_cols) == 0) {
+      numeric_cols <- names(agri_gdp_data)[sapply(agri_gdp_data, is.numeric) & names(agri_gdp_data) != "year"]
+      if (length(numeric_cols) > 0) pct_col <- numeric_cols[1] else return(HTML("No percentage data found"))
+    } else {
+      pct_col <- pct_cols[1]
+    }
+    
+    forecast_data <- create_random_forest_forecast(agri_gdp_data, pct_col)
+    if (!is.null(forecast_data$error)) {
+      return(HTML(paste0("<p style='color:red;'>Error: ", forecast_data$error, "</p>")))
+    }
+    
+    m <- forecast_data$metrics
+    HTML(paste0(
+      "<div style='font-size:12px; line-height:1.8;'>",
+      "<strong>Model:</strong> Random Forest ML<br><br>",
+      "<strong>Performance Metrics:</strong><br>",
+      "R²: ", sprintf("%.3f", m$r_squared), "<br>",
+      "RMSE: ", sprintf("%.2f", m$rmse), "<br>",
+      "MAE: ", sprintf("%.2f", m$mae), "<br><br>",
+      "<strong>Diagnostics:</strong><br>",
+      "Std Dev: ", sprintf("%.2f", m$std_dev), "<br>",
+      "Variance: ", sprintf("%.2f", m$variance),
+      "</div>"
+    ))
+  })
+  
+  # Agriculture GDP ML Interpretation
+  output$dem_agri_gdp_ml_interpretation <- renderUI({
+    agri_gdp_data <- load_agriculture_gdp_data()
+    if (is.null(agri_gdp_data)) return(HTML("No data available"))
+    
+    if ("Year" %in% names(agri_gdp_data)) names(agri_gdp_data)[names(agri_gdp_data) == "Year"] <- "year"
+    
+    # Find percentage column
+    pct_cols <- names(agri_gdp_data)[grepl('percent|%|pct|agriculture|gdp', names(agri_gdp_data), ignore.case = TRUE) & sapply(agri_gdp_data, is.numeric)]
+    if (length(pct_cols) == 0) {
+      numeric_cols <- names(agri_gdp_data)[sapply(agri_gdp_data, is.numeric) & names(agri_gdp_data) != "year"]
+      if (length(numeric_cols) > 0) pct_col <- numeric_cols[1] else return(HTML("No percentage data found"))
+    } else {
+      pct_col <- pct_cols[1]
+    }
+    
+    forecast_data <- create_random_forest_forecast(agri_gdp_data, pct_col)
+    if (!is.null(forecast_data$error)) {
+      return(HTML(paste0("<p style='color:red;'>Error: ", forecast_data$error, "</p>")))
+    }
+    
+    next_year_forecast <- forecast_data$forecast_value
+    current_value <- forecast_data$current_value
+    lower_ci <- forecast_data$f_lower[1]
+    upper_ci <- forecast_data$f_upper[1]
+    
+    var_imp <- importance(forecast_data$model)
+    top_var <- rownames(var_imp)[which.max(var_imp[, "%IncMSE"])]
+    
+    interpretation <- sprintf(
+      "The Random Forest ML model forecasts Rwanda's Agriculture contribution to GDP to be %.2f%% in the next year (95%% CI: %.2f%% to %.2f%%). This model, which considers multiple factors and their interactions, suggests %s. The most influential factor in this prediction was '%s'.",
+      next_year_forecast, lower_ci, upper_ci,
+      if(next_year_forecast > current_value) "a continued upward trend" else "a potential stabilization or slight decline",
+      gsub('_', ' ', tools::toTitleCase(top_var))
+    )
+    
+    HTML(paste0("<div style='font-size:13px; line-height:1.6; color:#475569;'>", interpretation, "</div>"))
+  })
+  
+  # Old ARIMA output (kept for backward compatibility but not used)
   output$dem_agri_gdp_forecast_chart <- renderPlotly({
     req(input$dem_agri_gdp_forecast_model)
     
@@ -6742,14 +8955,14 @@ server <- function(input, output, session) {
         x = forecast_data$f_years,
         y = forecast_data$f_mean,
         name = 'Forecast (mean)',
-        marker = list(color = '#157A4A', opacity = 0.8)
+        marker = list(color = '#0284c7', opacity = 0.8)
       ) %>%
       add_ribbons(
         x = forecast_data$f_years,
         ymin = forecast_data$f_lower,
         ymax = forecast_data$f_upper,
         name = '95% CI',
-        fillcolor = 'rgba(21, 122, 74, 0.2)',
+        fillcolor = 'rgba(2, 132, 199, 0.2)',
         line = list(color = 'transparent')
       ) %>%
       layout(
@@ -6855,204 +9068,255 @@ server <- function(input, output, session) {
   })
 
   # --- Economic sector visualizations added: Rwanda GDP, Inflation, Production Output ---
-  output$rwanda_gdp_plot <- renderPlotly({
-    if(exists('Rwanda_GDP')){
-      df <- as.data.frame(Rwanda_GDP)
-      # Attempt to find sensible column names
-      year_col <- names(df)[1]
-      value_col <- names(df)[2]
-      p <- plot_ly(df, x = ~get(year_col), y = ~get(value_col), type = 'scatter', mode = 'lines+markers') %>%
-        layout(title = 'Rwanda GDP', xaxis = list(title = year_col), yaxis = list(title = value_col))
-      p
-    } else plotly_empty()
+  output$rwanda_gdp_plot <- renderEcharts4r({
+    if(!exists('Rwanda_GDP')){
+      return(e_charts() %>% e_title("GDP data not available"))
+    }
+    
+    df <- as.data.frame(Rwanda_GDP)
+    year_col <- names(df)[1]
+    value_col <- names(df)[2]
+    
+    # Normalize column names
+    df$Year <- as.numeric(df[[year_col]])
+    df$Value <- as.numeric(df[[value_col]])
+    df <- df[order(df$Year), ]
+    
+    df %>%
+      e_charts(Year) %>%
+      e_line(Value,
+             name = "GDP",
+             lineStyle = list(color = "#0B78A0", width = 3),
+             itemStyle = list(color = "#0B78A0"),
+             symbol = "circle",
+             symbolSize = 8,
+             smooth = TRUE) %>%
+      e_area(Value,
+             name = "GDP Area",
+             itemStyle = list(color = "rgba(11, 120, 160, 0.2)"),
+             lineStyle = list(opacity = 0)) %>%
+      e_tooltip(
+        trigger = "axis",
+        formatter = htmlwidgets::JS("
+          function(params) {
+            var result = '<b>Year: ' + params[0].axisValue + '</b><br/>';
+            params.forEach(function(item) {
+              if(item.seriesName === 'GDP') {
+                result += 'GDP: $' + item.value.toLocaleString('en-US', {maximumFractionDigits: 2}) + ' Billion';
+              }
+            });
+            return result;
+          }
+        ")
+      ) %>%
+      e_x_axis(name = "Year", type = "category") %>%
+      e_y_axis(name = "GDP (Billion USD)", type = "value",
+               axisLabel = list(formatter = htmlwidgets::JS("function(value) { return '$' + value.toLocaleString('en-US'); }"))) %>%
+      e_legend(show = FALSE) %>%
+      e_title(
+        text = "Rwanda GDP Trends",
+        left = "center",
+        top = "2%",
+        textStyle = list(fontSize = 18, fontWeight = "bold", color = "#042A3B")
+      ) %>%
+      e_grid(left = "10%", right = "10%", bottom = "15%", top = "15%") %>%
+      e_datazoom(type = "slider", start = 0, end = 100) %>%
+      e_mark_point(data = list(type = "max", name = "Peak")) %>%
+      e_mark_line(data = list(type = "average", name = "Average"))
   })
 
-  output$rwanda_inflation_plot <- renderPlotly({
-    if(exists('Rwanda_inflation')){
-      df <- as.data.frame(Rwanda_inflation)
-      year_col <- names(df)[1]
-      value_col <- names(df)[2]
-      plot_ly(df, x = ~get(year_col), y = ~get(value_col), type = 'scatter', mode = 'lines+markers') %>%
-        layout(title = 'Rwanda Inflation', xaxis = list(title = year_col), yaxis = list(title = value_col))
-    } else plotly_empty()
+  output$rwanda_inflation_plot <- renderEcharts4r({
+    if(!exists('Rwanda_inflation')){
+      return(e_charts() %>% e_title("Inflation data not available"))
+    }
+    
+    df <- as.data.frame(Rwanda_inflation)
+    year_col <- names(df)[1]
+    value_col <- names(df)[2]
+    
+    # Normalize column names
+    df$Year <- as.numeric(df[[year_col]])
+    df$Value <- as.numeric(df[[value_col]])
+    df <- df[order(df$Year), ]
+    
+    df %>%
+      e_charts(Year) %>%
+      e_line(Value,
+             name = "Inflation Rate",
+             lineStyle = list(color = "#0B78A0", width = 3),
+             itemStyle = list(color = "#0B78A0"),
+             symbol = "circle",
+             symbolSize = 8,
+             smooth = TRUE) %>%
+      e_area(Value,
+             name = "Inflation Area",
+             itemStyle = list(color = "rgba(11, 120, 160, 0.15)"),
+             lineStyle = list(opacity = 0)) %>%
+      e_mark_area(
+        itemStyle = list(color = "rgba(220, 38, 38, 0.1)"),
+        data = list(list(yAxis = 0), list(yAxis = 5)),
+        label = list(show = TRUE, position = "inside", formatter = "Target Range (0-5%)")
+      ) %>%
+      e_tooltip(
+        trigger = "axis",
+        formatter = htmlwidgets::JS("
+          function(params) {
+            var result = '<b>Year: ' + params[0].axisValue + '</b><br/>';
+            params.forEach(function(item) {
+              if(item.seriesName === 'Inflation Rate') {
+                result += 'Inflation: ' + item.value.toFixed(2) + '%';
+              }
+            });
+            return result;
+          }
+        ")
+      ) %>%
+      e_x_axis(name = "Year", type = "category") %>%
+      e_y_axis(name = "Inflation Rate (%)", type = "value") %>%
+      e_legend(show = FALSE) %>%
+      e_title(
+        text = "Rwanda Inflation Rate Trends",
+        left = "center",
+        top = "2%",
+        textStyle = list(fontSize = 18, fontWeight = "bold", color = "#042A3B")
+      ) %>%
+      e_grid(left = "10%", right = "10%", bottom = "15%", top = "15%") %>%
+      e_datazoom(type = "slider", start = 0, end = 100) %>%
+      e_mark_point(data = list(list(type = "max", name = "Peak"), list(type = "min", name = "Lowest"))) %>%
+      e_mark_line(data = list(type = "average", name = "Average"))
   })
 
-  output$rwanda_production_plot <- renderPlotly({
-    if(exists('Rwanda_production_output')){
-      df <- as.data.frame(Rwanda_production_output)
-      year_col <- names(df)[1]
-      # allow user to pick the variable via the new overview_production_variable selectInput
-      var_col <- if(!is.null(input$overview_production_variable)) input$overview_production_variable else names(df)[2]
-      # fall back if chosen column not present
-      if(! (var_col %in% names(df)) ) var_col <- names(df)[2]
-
-      df2 <- df %>%
-        mutate(Year = as.integer(get(year_col)),
-               Value = as.numeric(.data[[var_col]])) %>%
-        arrange(Year)
-
-      y_title <- switch(var_col,
-                        'Agricultural_Yield_Billion_USD' = 'Agricultural Yield (Billion USD)',
-                        'Industrial_Output_Billion_USD' = 'Industrial Output (Billion USD)',
-                        'Service_Output_Billion_USD' = 'Service Output (Billion USD)',
-                        var_col)
-
-      plot_ly(df2, x = ~Year, y = ~Value, type = 'bar', marker = list(color = '#0B78A0'),
-              hovertemplate = paste('<b>Year</b>: %{x}<br><b>', y_title, '</b>: %{y}<extra></extra>')) %>%
-        layout(title = paste('Rwanda Production Output —', y_title), xaxis = list(title = year_col, tickmode = 'linear', dtick = 1), yaxis = list(title = y_title))
-    } else plotly_empty()
+  output$rwanda_production_plot <- renderEcharts4r({
+    req(input$overview_production_variable)
+    
+    if(!exists('Rwanda_production_output')){
+      return(e_charts() %>% e_title("Production data not available"))
+    }
+    
+    df <- as.data.frame(Rwanda_production_output)
+    year_col <- names(df)[1]
+    var_col <- input$overview_production_variable
+    
+    # Fall back if chosen column not present
+    if(! (var_col %in% names(df)) ) var_col <- names(df)[2]
+    
+    df2 <- df %>%
+      mutate(Year = as.integer(get(year_col)),
+             Value = as.numeric(.data[[var_col]])) %>%
+      arrange(Year)
+    
+    y_title <- switch(var_col,
+                      'Agricultural_Yield_Billion_USD' = 'Agricultural Yield (Billion USD)',
+                      'Industrial_Output_Billion_USD' = 'Industrial Output (Billion USD)',
+                      'Service_Output_Billion_USD' = 'Service Output (Billion USD)',
+                      var_col)
+    
+    # Color based on variable type
+    bar_color <- switch(var_col,
+                        'Agricultural_Yield_Billion_USD' = '#10b981',
+                        'Industrial_Output_Billion_USD' = '#0B78A0',
+                        'Service_Output_Billion_USD' = '#0284c7',
+                        '#0B78A0')
+    
+    df2 %>%
+      e_charts(Year) %>%
+      e_bar(Value,
+            name = y_title,
+            itemStyle = list(color = bar_color),
+            emphasis = list(itemStyle = list(color = bar_color, shadowBlur = 10))) %>%
+      e_tooltip(
+        trigger = "axis",
+        formatter = htmlwidgets::JS(paste0("
+          function(params) {
+            var result = '<b>Year: ' + params[0].axisValue + '</b><br/>';
+            params.forEach(function(item) {
+              result += '", y_title, ": $' + item.value.toLocaleString('en-US', {maximumFractionDigits: 2}) + ' Billion';
+            });
+            return result;
+          }
+        "))
+      ) %>%
+      e_x_axis(name = "Year", type = "category") %>%
+      e_y_axis(name = y_title, type = "value",
+               axisLabel = list(formatter = htmlwidgets::JS("function(value) { return '$' + value.toLocaleString('en-US'); }"))) %>%
+      e_legend(show = FALSE) %>%
+      e_title(
+        text = paste("Rwanda Production Output —", y_title),
+        left = "center",
+        top = "2%",
+        textStyle = list(fontSize = 18, fontWeight = "bold", color = "#042A3B")
+      ) %>%
+      e_grid(left = "10%", right = "10%", bottom = "15%", top = "15%") %>%
+      e_datazoom(type = "slider", start = 0, end = 100) %>%
+      e_mark_point(data = list(type = "max", name = "Peak")) %>%
+      e_mark_line(data = list(type = "average", name = "Average"))
   })
 
-  # Helper function to find the correct schema name for rwanda_trade table
-  find_trade_table_schema <- function(conn) {
-    tryCatch({
-      # Query information_schema to find the table
-      schemas <- dbGetQuery(conn, "
-        SELECT table_schema 
-        FROM information_schema.tables 
-        WHERE table_name = 'rwanda_trade'
-        ORDER BY table_schema
-      ")
+  # Fast trade data loader (cached). Avoids repeated schema hunting + DB retries on each render.
+  trade_cache <- reactiveVal(NULL)
+  trade_cache_time <- reactiveVal(as.POSIXct(0, origin = "1970-01-01", tz = "UTC"))
+  TRADE_CACHE_TTL <- 300  # seconds
+  
+  load_trade_data_fast <- function(force = FALSE) {
+    now <- Sys.time()
+    cached <- trade_cache()
+    if (!force && is.data.frame(cached) && nrow(cached) > 0 &&
+        as.numeric(difftime(now, trade_cache_time(), units = "secs")) < TRADE_CACHE_TTL) {
+      return(cached)
+    }
+    
+    # 1) DB fast-path (known schema from scripts/database/06_create_trade_table.sql)
+    db_df <- tryCatch({
+      query_neon("
+        SELECT year, exports_usd_billions, imports_usd_billions, trade_balance_usd_billions
+        FROM economic_data.rwanda_trade
+        ORDER BY year ASC
+      ", error_context = "Load trade data")
+    }, error = function(e) data.frame())
+    
+    if (is.data.frame(db_df) && nrow(db_df) > 0) {
+      trade_cache(db_df)
+      trade_cache_time(now)
+      return(db_df)
+    }
+    
+    # 2) CSV/in-memory fallback
+    if (exists('Rwanda_trade') && !is.null(Rwanda_trade)) {
+      df <- as.data.frame(Rwanda_trade)
       
-      if (nrow(schemas) > 0) {
-        schema_name <- schemas$table_schema[1]
-        # Quote if it contains spaces or special characters
-        if (grepl("[^a-zA-Z0-9_]", schema_name)) {
-          return(sprintf('"%s"', schema_name))
-        }
-        return(schema_name)
-      }
-      return(NULL)
-    }, error = function(e) {
-      message(sprintf("[TRADE CHART] Error finding schema: %s", e$message))
-      return(NULL)
-    })
+      year_col <- names(df)[grep("^year$|year", names(df), ignore.case = TRUE)[1]]
+      exp_col  <- names(df)[grep("export", names(df), ignore.case = TRUE)[1]]
+      imp_col  <- names(df)[grep("import", names(df), ignore.case = TRUE)[1]]
+      bal_col  <- names(df)[grep("balance|trade_balance", names(df), ignore.case = TRUE)[1]]
+      
+      if (is.na(year_col)) year_col <- names(df)[1]
+      if (is.na(exp_col) && ncol(df) >= 2) exp_col <- names(df)[2]
+      if (is.na(imp_col) && ncol(df) >= 3) imp_col <- names(df)[3]
+      if (is.na(bal_col) && ncol(df) >= 4) bal_col <- names(df)[4]
+      
+      out <- data.frame(
+        year = as.numeric(df[[year_col]]),
+        exports_usd_billions = as.numeric(df[[exp_col]]),
+        imports_usd_billions = as.numeric(df[[imp_col]]),
+        trade_balance_usd_billions = as.numeric(df[[bal_col]])
+      )
+      out <- out[order(out$year), , drop = FALSE]
+      
+      trade_cache(out)
+      trade_cache_time(now)
+      return(out)
+    }
+    
+    return(data.frame())
   }
   
   # Rwanda Balance of Trade Chart
-  output$rwanda_trade_plot <- renderPlotly({
-    trade_data <- NULL
-    
-    # Try to load from database first
-    tryCatch({
-      conn <- get_neon_connection()
-      on.exit({
-        if (!is.null(conn) && dbIsValid(conn)) {
-          dbDisconnect(conn)
-        }
-      }, add = TRUE)
-      
-      message("[TRADE CHART] 🔌 Connected to database, querying trade data...")
-      
-      # First, try to find the correct schema automatically
-      schema_name <- find_trade_table_schema(conn)
-      
-      if (!is.null(schema_name)) {
-        tryCatch({
-          query <- sprintf('
-            SELECT 
-              year,
-              exports_usd_billions,
-              imports_usd_billions,
-              trade_balance_usd_billions
-            FROM %s.rwanda_trade
-            ORDER BY year ASC
-          ', schema_name)
-          
-          message(sprintf("[TRADE CHART] Found schema: %s, querying...", schema_name))
-          trade_data <- dbGetQuery(conn, query)
-          
-          if (!is.null(trade_data) && nrow(trade_data) > 0) {
-            message(sprintf("[TRADE CHART] ✅ Data loaded from database using schema: %s (%d rows)", schema_name, nrow(trade_data)))
-          }
-        }, error = function(e) {
-          message(sprintf("[TRADE CHART] Query with detected schema failed: %s", e$message))
-        })
-      }
-      
-      # If auto-detection failed, try different schema name variations
-      if (is.null(trade_data) || nrow(trade_data) == 0) {
-        schema_variations <- c('"economic data"', 'economic_data', 'economic')
-        
-        for (schema_var in schema_variations) {
-          tryCatch({
-            query <- sprintf('
-              SELECT 
-                year,
-                exports_usd_billions,
-                imports_usd_billions,
-                trade_balance_usd_billions
-              FROM %s.rwanda_trade
-              ORDER BY year ASC
-            ', schema_var)
-            
-            message(sprintf("[TRADE CHART] Trying schema: %s", schema_var))
-            trade_data <- dbGetQuery(conn, query)
-            
-            if (!is.null(trade_data) && nrow(trade_data) > 0) {
-              message(sprintf("[TRADE CHART] ✅ Data loaded from database using schema: %s (%d rows)", schema_var, nrow(trade_data)))
-              break
-            }
-          }, error = function(e) {
-            message(sprintf("[TRADE CHART] Schema %s failed: %s", schema_var, e$message))
-          })
-        }
-      }
-      
-      # If still no data, try without schema prefix
-      if (is.null(trade_data) || nrow(trade_data) == 0) {
-        tryCatch({
-          message("[TRADE CHART] Trying without schema prefix...")
-          trade_data <- dbGetQuery(conn, "
-            SELECT 
-              year,
-              exports_usd_billions,
-              imports_usd_billions,
-              trade_balance_usd_billions
-            FROM rwanda_trade
-            ORDER BY year ASC
-          ")
-          if (!is.null(trade_data) && nrow(trade_data) > 0) {
-            message(sprintf("[TRADE CHART] ✅ Data loaded without schema prefix (%d rows)", nrow(trade_data)))
-          }
-        }, error = function(e) {
-          message(sprintf("[TRADE CHART] Query without schema failed: %s", e$message))
-        })
-      }
-      
-    }, error = function(e) {
-      message(sprintf("[TRADE CHART] ⚠️ Database connection failed: %s. Using CSV data.", e$message))
-      
-      # Fallback to CSV data if database table doesn't exist
-      if (exists('Rwanda_trade') && !is.null(Rwanda_trade)) {
-        df <- as.data.frame(Rwanda_trade)
-        
-        # Map CSV column names to expected names
-        year_col <- names(df)[1]  # Usually "Year"
-        exports_col <- names(df)[grep("Export", names(df), ignore.case = TRUE)[1]]
-        imports_col <- names(df)[grep("Import", names(df), ignore.case = TRUE)[1]]
-        balance_col <- names(df)[grep("Balance|Trade", names(df), ignore.case = TRUE)[1]]
-        
-        if (!is.na(exports_col) && !is.na(imports_col) && !is.na(balance_col)) {
-          trade_data <- data.frame(
-            year = as.numeric(df[[year_col]]),
-            exports_usd_billions = as.numeric(df[[exports_col]]),
-            imports_usd_billions = as.numeric(df[[imports_col]]),
-            trade_balance_usd_billions = as.numeric(df[[balance_col]])
-          )
-          trade_data <- trade_data[order(trade_data$year), ]
-          message("[TRADE CHART] ✅ Data loaded from CSV file")
-        }
-      }
-    })
+  output$rwanda_trade_plot <- renderEcharts4r({
+    trade_data <- load_trade_data_fast()
     
     # If still no data, return empty plot
     if (is.null(trade_data) || nrow(trade_data) == 0) {
-      return(plotly_empty() %>% 
-             layout(title = "No trade data available",
-                   annotations = list(text = "No trade data found in economic_data.rwanda_trade",
-                                     xref = "paper", yref = "paper",
-                                     x = 0.5, y = 0.5, showarrow = FALSE)))
+      return(e_charts() %>% e_title("No trade data available"))
     }
     
     # Ensure numeric columns
@@ -7060,112 +9324,78 @@ server <- function(input, output, session) {
     trade_data$exports_usd_billions <- as.numeric(trade_data$exports_usd_billions)
     trade_data$imports_usd_billions <- as.numeric(trade_data$imports_usd_billions)
     trade_data$trade_balance_usd_billions <- as.numeric(trade_data$trade_balance_usd_billions)
+    trade_data <- trade_data[order(trade_data$year), ]
     
     # Create professional statistical chart with multiple series
-    p <- plot_ly(trade_data, x = ~year) %>%
-      add_trace(
-        y = ~exports_usd_billions,
-        name = 'Exports',
-        type = 'scatter',
-        mode = 'lines+markers',
-        line = list(color = '#0B78A0', width = 3),
-        marker = list(color = '#0B78A0', size = 8, symbol = 'circle'),
-        hovertemplate = '<b>Year</b>: %{x}<br><b>Exports</b>: $%{y:.2f} Billion<extra></extra>'
+    trade_data %>%
+      e_charts(year) %>%
+      e_line(exports_usd_billions,
+             name = "Exports",
+             lineStyle = list(color = "#0B78A0", width = 3),
+             itemStyle = list(color = "#0B78A0"),
+             symbol = "circle",
+             symbolSize = 8,
+             smooth = TRUE) %>%
+      e_line(imports_usd_billions,
+             name = "Imports",
+             lineStyle = list(color = "#dc2626", width = 3),
+             itemStyle = list(color = "#dc2626"),
+             symbol = "square",
+             symbolSize = 8,
+             smooth = TRUE) %>%
+      e_line(trade_balance_usd_billions,
+             name = "Trade Balance",
+             lineStyle = list(color = "#0284c7", width = 3, type = "dashed"),
+             itemStyle = list(color = "#0284c7"),
+             symbol = "diamond",
+             symbolSize = 8,
+             smooth = TRUE) %>%
+      e_area(trade_balance_usd_billions,
+             name = "Balance Area",
+             itemStyle = list(color = "rgba(2, 132, 199, 0.15)"),
+             lineStyle = list(opacity = 0),
+             stack = "balance") %>%
+      e_mark_line(
+        data = list(yAxis = 0),
+        lineStyle = list(color = "#64748b", type = "dashed", width = 2),
+        label = list(formatter = "Zero Balance", position = "end")
       ) %>%
-      add_trace(
-        y = ~imports_usd_billions,
-        name = 'Imports',
-        type = 'scatter',
-        mode = 'lines+markers',
-        line = list(color = '#dc2626', width = 3),
-        marker = list(color = '#dc2626', size = 8, symbol = 'square'),
-        hovertemplate = '<b>Year</b>: %{x}<br><b>Imports</b>: $%{y:.2f} Billion<extra></extra>'
+      e_tooltip(
+        trigger = "axis",
+        formatter = htmlwidgets::JS("
+          function(params) {
+            var result = '<b>Year: ' + params[0].axisValue + '</b><br/>';
+            params.forEach(function(item) {
+              var value = item.value.toLocaleString('en-US', {maximumFractionDigits: 2});
+              if(item.seriesName === 'Exports') {
+                result += 'Exports: $' + value + ' Billion<br/>';
+              } else if(item.seriesName === 'Imports') {
+                result += 'Imports: $' + value + ' Billion<br/>';
+              } else if(item.seriesName === 'Trade Balance') {
+                result += 'Trade Balance: $' + value + ' Billion';
+              }
+            });
+            return result;
+          }
+        ")
       ) %>%
-      add_trace(
-        y = ~trade_balance_usd_billions,
-        name = 'Trade Balance',
-        type = 'scatter',
-        mode = 'lines+markers',
-        line = list(color = '#059669', width = 3, dash = 'dash'),
-        marker = list(color = '#059669', size = 8, symbol = 'diamond'),
-        hovertemplate = '<b>Year</b>: %{x}<br><b>Trade Balance</b>: $%{y:.2f} Billion<extra></extra>'
+      e_x_axis(name = "Year", type = "category") %>%
+      e_y_axis(name = "USD Billions", type = "value",
+               axisLabel = list(formatter = htmlwidgets::JS("function(value) { return '$' + value.toLocaleString('en-US'); }"))) %>%
+      e_legend(show = TRUE, top = "8%") %>%
+      e_title(
+        text = "Rwanda Balance of Trade Analysis",
+        left = "center",
+        top = "2%",
+        textStyle = list(fontSize = 18, fontWeight = "bold", color = "#042A3B")
       ) %>%
-      layout(
-        title = list(
-          text = 'Rwanda Balance of Trade Analysis',
-          font = list(size = 20, color = '#0B78A0', family = 'Arial, sans-serif')
-        ),
-        xaxis = list(
-          title = list(text = 'Year', font = list(size = 14, color = '#374151')),
-          tickmode = 'linear',
-          dtick = 1,
-          gridcolor = '#e5e7eb',
-          showgrid = TRUE
-        ),
-        yaxis = list(
-          title = list(text = 'Value (USD Billions)', font = list(size = 14, color = '#374151')),
-          gridcolor = '#e5e7eb',
-          showgrid = TRUE,
-          zeroline = TRUE,
-          zerolinecolor = '#9ca3af',
-          zerolinewidth = 1
-        ),
-        hovermode = 'x unified',
-        legend = list(
-          orientation = 'h',
-          xanchor = 'center',
-          x = 0.5,
-          y = -0.15,
-          font = list(size = 12)
-        ),
-        margin = list(l = 60, r = 40, t = 80, b = 80),
-        plot_bgcolor = '#ffffff',
-        paper_bgcolor = '#ffffff',
-        font = list(family = 'Arial, sans-serif', size = 12)
-      )
-    
-    return(p)
+      e_grid(left = "10%", right = "10%", bottom = "15%", top = "20%") %>%
+      e_datazoom(type = "slider", start = 0, end = 100)
   })
   
   # Trade Statistics Summary Outputs
   output$trade_avg_exports <- renderText({
-    trade_data <- NULL
-    
-    # Try database first
-    tryCatch({
-      conn <- get_neon_connection()
-      on.exit({
-        if (!is.null(conn) && dbIsValid(conn)) {
-          dbDisconnect(conn)
-        }
-      }, add = TRUE)
-      
-      # Try different schema variations
-      schema_variations <- c('"economic data"', 'economic_data', 'economic')
-      for (schema_name in schema_variations) {
-        tryCatch({
-          query <- sprintf('SELECT exports_usd_billions FROM %s.rwanda_trade', schema_name)
-          trade_data <- dbGetQuery(conn, query)
-          if (!is.null(trade_data) && nrow(trade_data) > 0) break
-        }, error = function(e) {})
-      }
-      
-      # Try without schema
-      if (is.null(trade_data) || nrow(trade_data) == 0) {
-        tryCatch({
-          trade_data <- dbGetQuery(conn, "SELECT exports_usd_billions FROM rwanda_trade")
-        }, error = function(e) {})
-      }
-    }, error = function(e) {
-      # Fallback to CSV
-      if (exists('Rwanda_trade') && !is.null(Rwanda_trade)) {
-        df <- as.data.frame(Rwanda_trade)
-        exports_col <- names(df)[grep("Export", names(df), ignore.case = TRUE)[1]]
-        if (!is.na(exports_col)) {
-          trade_data <- data.frame(exports_usd_billions = as.numeric(df[[exports_col]]))
-        }
-      }
-    })
+    trade_data <- load_trade_data_fast()
     
     if (is.null(trade_data) || nrow(trade_data) == 0) return("N/A")
     avg <- mean(trade_data$exports_usd_billions, na.rm = TRUE)
@@ -7174,43 +9404,7 @@ server <- function(input, output, session) {
   })
   
   output$trade_avg_imports <- renderText({
-    trade_data <- NULL
-    
-    # Try database first
-    tryCatch({
-      conn <- get_neon_connection()
-      on.exit({
-        if (!is.null(conn) && dbIsValid(conn)) {
-          dbDisconnect(conn)
-        }
-      }, add = TRUE)
-      
-      # Try different schema variations
-      schema_variations <- c('"economic data"', 'economic_data', 'economic')
-      for (schema_name in schema_variations) {
-        tryCatch({
-          query <- sprintf('SELECT imports_usd_billions FROM %s.rwanda_trade', schema_name)
-          trade_data <- dbGetQuery(conn, query)
-          if (!is.null(trade_data) && nrow(trade_data) > 0) break
-        }, error = function(e) {})
-      }
-      
-      # Try without schema
-      if (is.null(trade_data) || nrow(trade_data) == 0) {
-        tryCatch({
-          trade_data <- dbGetQuery(conn, "SELECT imports_usd_billions FROM rwanda_trade")
-        }, error = function(e) {})
-      }
-    }, error = function(e) {
-      # Fallback to CSV
-      if (exists('Rwanda_trade') && !is.null(Rwanda_trade)) {
-        df <- as.data.frame(Rwanda_trade)
-        imports_col <- names(df)[grep("Import", names(df), ignore.case = TRUE)[1]]
-        if (!is.na(imports_col)) {
-          trade_data <- data.frame(imports_usd_billions = as.numeric(df[[imports_col]]))
-        }
-      }
-    })
+    trade_data <- load_trade_data_fast()
     
     if (is.null(trade_data) || nrow(trade_data) == 0) return("N/A")
     avg <- mean(trade_data$imports_usd_billions, na.rm = TRUE)
@@ -7219,43 +9413,7 @@ server <- function(input, output, session) {
   })
   
   output$trade_avg_balance <- renderText({
-    trade_data <- NULL
-    
-    # Try database first
-    tryCatch({
-      conn <- get_neon_connection()
-      on.exit({
-        if (!is.null(conn) && dbIsValid(conn)) {
-          dbDisconnect(conn)
-        }
-      }, add = TRUE)
-      
-      # Try different schema variations
-      schema_variations <- c('"economic data"', 'economic_data', 'economic')
-      for (schema_name in schema_variations) {
-        tryCatch({
-          query <- sprintf('SELECT trade_balance_usd_billions FROM %s.rwanda_trade', schema_name)
-          trade_data <- dbGetQuery(conn, query)
-          if (!is.null(trade_data) && nrow(trade_data) > 0) break
-        }, error = function(e) {})
-      }
-      
-      # Try without schema
-      if (is.null(trade_data) || nrow(trade_data) == 0) {
-        tryCatch({
-          trade_data <- dbGetQuery(conn, "SELECT trade_balance_usd_billions FROM rwanda_trade")
-        }, error = function(e) {})
-      }
-    }, error = function(e) {
-      # Fallback to CSV
-      if (exists('Rwanda_trade') && !is.null(Rwanda_trade)) {
-        df <- as.data.frame(Rwanda_trade)
-        balance_col <- names(df)[grep("Balance|Trade", names(df), ignore.case = TRUE)[1]]
-        if (!is.na(balance_col)) {
-          trade_data <- data.frame(trade_balance_usd_billions = as.numeric(df[[balance_col]]))
-        }
-      }
-    })
+    trade_data <- load_trade_data_fast()
     
     if (is.null(trade_data) || nrow(trade_data) == 0) return("N/A")
     avg <- mean(trade_data$trade_balance_usd_billions, na.rm = TRUE)
@@ -7361,30 +9519,36 @@ server <- function(input, output, session) {
     } else 'No production data available'
   })
   
-  # Hero slider - Modern CSS-based carousel
+  # Video background initialization and controls
   observe({
-    imgs <- c(
-      "homepage_main.jpg",
-      "homepage_2.jpg",
-      "homepage_3.jpg",
-      "homepage_4.jpg",
-      "homepage_5.jpg"
-    )
-    
-    # Create carousel HTML using the professional CSS already defined
-    carousel_html <- paste0('
-      <div class="carousel-container">
-        <div class="carousel-track">',
-      paste0('<div class="carousel-slide"><img src="', imgs, '" alt="Rwanda Development" /></div>', collapse = ''),
-      '</div>
-        <div class="carousel-dots">',
-      paste0('<span class="dot" data-slide="', 0:(length(imgs)-1), '"></span>', collapse = ''),
-      '</div>
-      </div>
-    ')
-    
-    # Insert the carousel HTML
-    runjs(paste0("document.getElementById('hero_slider').innerHTML = `", carousel_html, "`;"))
+    # Ensure video plays automatically and loops
+    runjs("
+      (function() {
+        var video = document.querySelector('.hero-video-background');
+        if (video) {
+          video.muted = true;
+          video.loop = true;
+          video.autoplay = true;
+          video.playsInline = true;
+          
+          // Play video (some browsers require user interaction, so we try)
+          var playPromise = video.play();
+          if (playPromise !== undefined) {
+            playPromise.catch(function(error) {
+              console.log('Video autoplay prevented:', error);
+              // Video will play on user interaction
+            });
+          }
+          
+          // Ensure video continues playing even if browser pauses it
+          video.addEventListener('pause', function() {
+            if (!document.hidden) {
+              video.play();
+            }
+          });
+        }
+      })();
+    ")
   })
   
   # Interactive box click handlers
@@ -7395,10 +9559,10 @@ server <- function(input, output, session) {
         div(style = "display:flex; gap:20px; align-items:start;",
           div(style = "flex:1;",
             tags$ul(style = "list-style:none; padding:0; margin:0;",
-              tags$li(style = "margin-bottom:10px;", HTML("<b>Annual Growth Rate:</b> <span style='color:#157A4A'>8.2%</span>")),
+              tags$li(style = "margin-bottom:10px;", HTML("<b>Annual Growth Rate:</b> <span style='color:#0284c7'>8.2%</span>")),
               tags$li(style = "margin-bottom:10px;", HTML("<b>Total GDP:</b> $13.7 Billion")),
               tags$li(style = "margin-bottom:10px;", HTML("<b>Key Sectors:</b> Services, Industry")),
-              tags$li(HTML("<b>FDI Growth:</b> <span style='color:#157A4A'>+12%</span>"))
+              tags$li(HTML("<b>FDI Growth:</b> <span style='color:#0284c7'>+12%</span>"))
             )
           ),
           div(style = "flex:1; text-align:right;", plotlyOutput("gdp_trend", height = "150px"))
@@ -7416,7 +9580,7 @@ server <- function(input, output, session) {
         div(style = "display:flex; gap:20px; align-items:start;",
           div(style = "flex:1;",
             tags$ul(style = "list-style:none; padding:0; margin:0;",
-              tags$li(style = "margin-bottom:10px;", HTML("<b>Current Rate:</b> <span style='color:#157A4A'>76.3%</span>")),
+              tags$li(style = "margin-bottom:10px;", HTML("<b>Current Rate:</b> <span style='color:#0284c7'>76.3%</span>")),
               tags$li(style = "margin-bottom:10px;", HTML("<b>Youth Literacy:</b> 85.8%")),
               tags$li(style = "margin-bottom:10px;", HTML("<b>Female:</b> 74.2%")),
               tags$li(HTML("<b>Male:</b> 78.4%"))
@@ -7440,7 +9604,7 @@ server <- function(input, output, session) {
               tags$li(style = "margin-bottom:10px;", HTML("<b>Global Rank:</b> 49th")),
               tags$li(style = "margin-bottom:10px;", HTML("<b>African Rank:</b> 3rd")),
               tags$li(style = "margin-bottom:10px;", HTML("<b>Score:</b> 69/100")),
-              tags$li(HTML("<b>Change:</b> <span style='color:#157A4A'>+2 points</span>"))
+              tags$li(HTML("<b>Change:</b> <span style='color:#0284c7'>+2 points</span>"))
             )
           ),
           div(style = "flex:1; text-align:right;", plotlyOutput("cpi_trend", height = "150px"))
@@ -7458,7 +9622,7 @@ server <- function(input, output, session) {
         div(style = "display:flex; gap:20px; align-items:start;",
           div(style = "flex:1;",
             tags$ul(style = "list-style:none; padding:0; margin:0;",
-              tags$li(style = "margin-bottom:10px;", HTML("<b>National Coverage:</b> <span style='color:#157A4A'>82.5%</span>")),
+              tags$li(style = "margin-bottom:10px;", HTML("<b>National Coverage:</b> <span style='color:#0284c7'>82.5%</span>")),
               tags$li(style = "margin-bottom:10px;", HTML("<b>Rural Access:</b> 75%")),
               tags$li(style = "margin-bottom:10px;", HTML("<b>Urban Access:</b> 95%")),
               tags$li(HTML("<b>Renewable Share:</b> 52%"))
@@ -7482,7 +9646,7 @@ server <- function(input, output, session) {
               tags$li(style = "margin-bottom:10px;", HTML("<b>Current:</b> 70.2 years")),
               tags$li(style = "margin-bottom:10px;", HTML("<b>Female:</b> 72.1 years")),
               tags$li(style = "margin-bottom:10px;", HTML("<b>Male:</b> 68.3 years")),
-              tags$li(HTML("<b>Change:</b> <span style='color:#157A4A'>+0.7 years</span>"))
+              tags$li(HTML("<b>Change:</b> <span style='color:#0284c7'>+0.7 years</span>"))
             )
           ),
           div(style = "flex:1; text-align:right;", plotlyOutput("life_exp_trend", height = "150px"))
@@ -7503,7 +9667,7 @@ server <- function(input, output, session) {
               tags$li(style = "margin-bottom:10px;", HTML("<b>Current Rate:</b> 35.6%")),
               tags$li(style = "margin-bottom:10px;", HTML("<b>Rural Poverty:</b> 40.2%")),
               tags$li(style = "margin-bottom:10px;", HTML("<b>Urban Poverty:</b> 28.7%")),
-              tags$li(HTML("<b>Reduction:</b> <span style='color:#157A4A'>-2.6%</span>"))
+              tags$li(HTML("<b>Reduction:</b> <span style='color:#0284c7'>-2.6%</span>"))
             )
           ),
           div(style = "flex:1; text-align:right;", plotlyOutput("poverty_trend", height = "150px"))
@@ -7529,28 +9693,13 @@ server <- function(input, output, session) {
     ))
   })
 
-  # Predictive card click handler
-  observeEvent(input$predict_card_click, {
-    parts <- strsplit(as.character(input$predict_card_click), '\\|')[[1]]
-    id <- parts[1]
-    # Create a simple modal based on id
-    title <- switch(id,
-                    'predict_gdp' = 'GDP Projection (2028)',
-                    'predict_population' = 'Population Projection (2030)',
-                    'predict_poverty' = 'Poverty Rate Projection (2029)',
-                    id)
-    body_html <- switch(id,
-                        'predict_gdp' = tags$div('GDP projection details will appear here.'),
-                        'predict_population' = tags$div('Population projection details will appear here.'),
-                        'predict_poverty' = tags$div('Poverty projection details will appear here.'),
-                        tags$div('No details available.')
-    )
-    showModal(modalDialog(
-      title = title,
-      body_html,
-      size = 'm', easyClose = TRUE
-    ))
-  })
+  # ============================================================================
+  # PREDICTIVE ANALYSIS SECTION - Real ML Models Backend
+  # ============================================================================
+  # Uses Prophet for GDP and Random Forest for Population and Poverty Rate
+  # ============================================================================
+  
+  # Predictive analysis section removed - no longer needed
 
   # Sector dashboard card click handler
   observeEvent(input$sector_dashboard_click, {
@@ -7563,68 +9712,98 @@ server <- function(input, output, session) {
     ))
   })
   
-  # Demo data for population with animation frames
+  # Pre-compute population data (static, no reactive dependencies)
   pop_base <- data.frame(
-  Category = c('Total Population', 'Male', 'Female'),
-  Population = c(14104969, 6875000, 7229969),
-    Frame = c(1, 2, 3)  # Frame order for animation
+    Category = c('Total Population', 'Male', 'Female'),
+    Population = c(14104969, 6875000, 7229969),
+    stringsAsFactors = FALSE
   )
   
-  # Note: pop_base contains frame information (Frame = 1,2,3). We'll use it directly in the plot.
+  # Pre-compute GDP and Literacy values (static, no reactive dependencies)
+  gdp_current <- 13.96
+  gdp_last <- 12.9
+  gdp_change <- round((gdp_current - gdp_last) / gdp_last * 100, 1)
+  
+  literacy <- c('2022' = 73.2, '2023' = 74.1, '2024' = 75.0, '2025' = 76.3)
+  literacy_change <- round((literacy["2025"] - literacy["2024"]) / literacy["2024"] * 100, 1)
+  
+  # Optimized Population Chart - Pre-rendered with professional blue colors
+  # Pre-compute max population for y-axis range
+  pop_max <- max(pop_base$Population) * 1.2
   
   output$pop_bar <- plotly::renderPlotly({
-    # Show all categories together in the overview (Total, Male, Female)
+    # Static data, no reactive dependencies - renders instantly
     plot_ly(
       data = pop_base,
       x = ~Category,
       y = ~Population,
       type = 'bar',
       marker = list(
-        color = c('#0B78A0', '#157A4A', '#FFD100'),
-        line = list(color = '#ffffff', width = 1.5)
+        color = c('#0B78A0', '#0284c7', '#0ea5e9'),  # Professional blue gradient
+        line = list(color = '#ffffff', width = 2),
+        opacity = 0.9
       ),
       text = ~formatC(Population, format = "f", big.mark = ",", digits = 0),
-      textposition = 'auto',
+      textposition = 'outside',
+      textfont = list(size = 12, color = '#0f172a', weight = 'bold'),
       hoverinfo = 'text',
-      hovertext = ~paste(Category, "<br>", "Population: ", formatC(Population, format = "f", big.mark = ",", digits = 0))
+      hovertext = ~paste(
+        "<b>", Category, "</b><br>",
+        "Population: <b>", formatC(Population, format = "f", big.mark = ",", digits = 0), "</b>"
+      )
     ) %>%
       layout(
         showlegend = FALSE,
-        xaxis = list(title = "", showgrid = FALSE),
-        yaxis = list(title = "Population", showgrid = TRUE, gridcolor = 'rgba(255,255,255,0.08)', range = c(0, max(pop_base$Population) * 1.15)),
+        xaxis = list(
+          title = "",
+          showgrid = FALSE,
+          tickfont = list(size = 12, color = '#475569')
+        ),
+        yaxis = list(
+          title = list(text = "Population", font = list(size = 14, color = '#0B78A0')),
+          showgrid = TRUE,
+          gridcolor = 'rgba(11,120,160,0.08)',
+          range = c(0, pop_max),
+          tickfont = list(size = 11, color = '#64748b')
+        ),
         plot_bgcolor = 'transparent',
         paper_bgcolor = 'transparent',
-        font = list(color = '#111'),
-        margin = list(t = 10, r = 10, b = 40),
-        hoverlabel = list(bgcolor = "white", font = list(size = 12))
+        font = list(family = 'Inter, sans-serif', color = '#0f172a'),
+        margin = list(t = 20, r = 20, b = 50, l = 60),
+        hoverlabel = list(
+          bgcolor = "rgba(255,255,255,0.98)",
+          bordercolor = "#0B78A0",
+          font = list(size = 12, color = '#0f172a')
+        )
       ) %>%
-      config(displayModeBar = FALSE)
-  })
-
-  # GDP info box
-  # Adjusted so displayed GDP change matches requested ~8.2%
-  gdp_current <- 13.96 # in billion USD (example)
-  gdp_last <- 12.9 # last year
-  gdp_change <- round((gdp_current - gdp_last) / gdp_last * 100, 1)
-  output$gdp_box <- renderUI({
-    txt <- paste0(
-      '<div style="display:flex; gap:12px; align-items:center; width:100%;">',
-  '<div class="infobox-icon"><i class="fas fa-chart-line"></i></div>',
-        '<div style="flex:1;">',
-          '<div style="font-weight:700; font-size:1.22em; color:#000; margin-bottom:12px; text-align:left;">GDP Growth</div>',
-          '<div style="font-size:2.8em; font-weight:600; color:#0B78A0; margin-bottom:auto;">', gdp_change, '%</div>',
-          '<div style="font-size:0.95em; color:', ifelse(gdp_change>=0,'#157A4A','#ff4444'), '; display:flex; align-items:center; gap:4px; margin-top:auto;">',
-            '<span>', ifelse(gdp_change>=0,'↑','↓'), '</span>',
-            ifelse(gdp_change>=0,'+',''), gdp_change, '% from last year</div>',
-        '</div>',
-      '</div>'
-    )
-    HTML(txt)
+      config(
+        displayModeBar = FALSE,
+        staticPlot = FALSE
+      )
   })
   
-  # Literacy info box data
-  literacy <- c('2022' = 73.2, '2023' = 74.1, '2024' = 75.0, '2025' = 76.3) # example
-  literacy_change <- round((literacy["2025"] - literacy["2024"]) / literacy["2024"] * 100, 1)
+  # Optimize: Suspend pop_bar when hidden for faster loading (must be after output definition)
+  outputOptions(output, "pop_bar", suspendWhenHidden = TRUE)
+
+  # Optimized GDP info box - Pre-computed values, no reactive dependencies
+  # Pre-compute HTML string for faster rendering
+  gdp_box_html <- paste0(
+    '<div style="display:flex; gap:12px; align-items:center; width:100%;">',
+    '<div class="infobox-icon"><i class="fas fa-chart-line"></i></div>',
+    '<div style="flex:1;">',
+      '<div style="font-weight:700; font-size:1.22em; color:#000; margin-bottom:12px; text-align:left;">GDP Growth</div>',
+      '<div style="font-size:2.8em; font-weight:600; color:#0B78A0; margin-bottom:auto;">', gdp_change, '%</div>',
+      '<div style="font-size:0.95em; color:', ifelse(gdp_change>=0,'#0284c7','#ff4444'), '; display:flex; align-items:center; gap:4px; margin-top:auto;">',
+        '<span>', ifelse(gdp_change>=0,'↑','↓'), '</span>',
+        ifelse(gdp_change>=0,'+',''), gdp_change, '% from last year</div>',
+    '</div>',
+    '</div>'
+  )
+  
+  output$gdp_box <- renderUI({
+    # Static HTML, renders instantly
+    HTML(gdp_box_html)
+  })
   
   # Corruption Perception Index data
   cpi <- c('2024' = 67, '2025' = 69) # example (0-100 scale, higher is better)
@@ -7636,7 +9815,7 @@ server <- function(input, output, session) {
         '<div style="flex:1;">',
           '<div style="font-weight:700; font-size:1.22em; color:#000; margin-bottom:12px; text-align:left;">Corruption Perception Index</div>',
           '<div style="font-size:2.8em; font-weight:600; color:#0B78A0; margin-bottom:auto;">', cpi["2025"], '</div>',
-          '<div style="font-size:0.95em; color:', ifelse(cpi_change>=0,'#157A4A','#ff4444'), '; display:flex; align-items:center; gap:4px; margin-top:auto;">',
+          '<div style="font-size:0.95em; color:', ifelse(cpi_change>=0,'#0284c7','#ff4444'), '; display:flex; align-items:center; gap:4px; margin-top:auto;">',
             '<span>', ifelse(cpi_change>=0,'↑','↓'), '</span>',
             ifelse(cpi_change>=0,'+',''), cpi_change, ' points from last year</div>',
         '</div>',
@@ -7655,7 +9834,7 @@ server <- function(input, output, session) {
         '<div style="flex:1;">',
           '<div style="font-weight:700; font-size:1.22em; color:#000; margin-bottom:12px; text-align:left;">Electricity Access</div>',
           '<div style="font-size:2.8em; font-weight:600; color:#0B78A0; margin-bottom:auto;">', electricity["2025"], '%</div>',
-          '<div style="font-size:0.95em; color:', ifelse(electricity_change>=0,'#157A4A','#ff4444'), '; display:flex; align-items:center; gap:4px; margin-top:auto;">',
+          '<div style="font-size:0.95em; color:', ifelse(electricity_change>=0,'#0284c7','#ff4444'), '; display:flex; align-items:center; gap:4px; margin-top:auto;">',
             '<span>', ifelse(electricity_change>=0,'↑','↓'), '</span>',
             ifelse(electricity_change>=0,'+',''), electricity_change, '% from last year</div>',
         '</div>',
@@ -7674,7 +9853,7 @@ server <- function(input, output, session) {
         '<div style="flex:1;">',
           '<div style="font-weight:700; font-size:1.22em; color:#000; margin-bottom:12px; text-align:left;">Life Expectancy</div>',
           '<div style="font-size:2.8em; font-weight:600; color:#0B78A0; margin-bottom:auto;">', life_exp["2025"], '</div>',
-          '<div style="font-size:0.95em; color:', ifelse(life_exp_change>=0,'#157A4A','#ff4444'), '; display:flex; align-items:center; gap:4px; margin-top:auto;">',
+          '<div style="font-size:0.95em; color:', ifelse(life_exp_change>=0,'#0284c7','#ff4444'), '; display:flex; align-items:center; gap:4px; margin-top:auto;">',
             '<span>', ifelse(life_exp_change>=0,'↑','↓'), '</span>',
             ifelse(life_exp_change>=0,'+',''), life_exp_change, ' years from last year</div>',
         '</div>',
@@ -7693,7 +9872,7 @@ server <- function(input, output, session) {
         '<div style="flex:1;">',
           '<div style="font-weight:700; font-size:1.22em; color:#000; margin-bottom:12px; text-align:left;">Poverty Rate</div>',
           '<div style="font-size:2.8em; font-weight:600; color:#0B78A0; margin-bottom:auto;">', poverty["2025"], '%</div>',
-          '<div style="font-size:0.95em; color:', ifelse(poverty_change<0,'#157A4A','#ff4444'), '; display:flex; align-items:center; gap:4px; margin-top:auto;">',
+          '<div style="font-size:0.95em; color:', ifelse(poverty_change<0,'#0284c7','#ff4444'), '; display:flex; align-items:center; gap:4px; margin-top:auto;">',
             '<span>', ifelse(poverty_change<0,'↓','↑'), '</span>',
             ifelse(poverty_change<0,'','+'), poverty_change, '% from last year</div>',
         '</div>',
@@ -7718,7 +9897,7 @@ server <- function(input, output, session) {
           '</div>',
           '<div style="display:flex; flex-direction:column; gap:4px;">',
             '<div style="font-size:0.85em; color:#64748b; font-weight:600; text-transform:uppercase; letter-spacing:0.5px;">Provinces</div>',
-            '<div style="font-size:1.8em; font-weight:700; color:#157A4A; line-height:1.2;">5</div>',
+            '<div style="font-size:1.8em; font-weight:700; color:#0284c7; line-height:1.2;">5</div>',
             '<div style="font-size:0.9em; color:#64748b;">Regions</div>',
           '</div>',
           '<div style="display:flex; flex-direction:column; gap:4px;">',
@@ -7728,7 +9907,7 @@ server <- function(input, output, session) {
           '</div>',
           '<div style="display:flex; flex-direction:column; gap:4px;">',
             '<div style="font-size:0.85em; color:#64748b; font-weight:600; text-transform:uppercase; letter-spacing:0.5px;">Sectors</div>',
-            '<div style="font-size:1.8em; font-weight:700; color:#157A4A; line-height:1.2;">416</div>',
+            '<div style="font-size:1.8em; font-weight:700; color:#0284c7; line-height:1.2;">416</div>',
             '<div style="font-size:0.9em; color:#64748b;">Local Units</div>',
           '</div>',
         '</div>',
@@ -7742,22 +9921,33 @@ server <- function(input, output, session) {
 
   # --- placeholders for standalone economic dashboard (renderers removed from in-page view)
 
+  # Optimized Literacy info box - Pre-computed values, no reactive dependencies
+  # Pre-compute HTML string for faster rendering
+  literacy_box_html <- paste0(
+    '<div style="display:flex; gap:12px; align-items:center; width:100%;">',
+    '<div class="infobox-icon"><i class="fas fa-book"></i></div>',
+    '<div style="flex:1;">',
+      '<div style="font-weight:700; font-size:1.22em; color:#000; margin-bottom:12px; text-align:left;">Literacy Rate</div>',
+      '<div style="font-size:2.8em; font-weight:600; color:#0B78A0; margin-bottom:auto;">', literacy["2025"], '%</div>',
+      '<div style="font-size:0.95em; color:', ifelse(literacy_change>=0,'#0284c7','#ff4444'), '; display:flex; align-items:center; gap:4px; margin-top:auto;">',
+        '<span>', ifelse(literacy_change>=0,'↑','↓'), '</span>',
+        ifelse(literacy_change>=0,'+',''), literacy_change, '% from last year</div>',
+    '</div>',
+    '</div>'
+  )
+  
   output$literacy_box <- renderUI({
-    txt <- paste0(
-      '<div style="display:flex; gap:12px; align-items:center; width:100%;">',
-  '<div class="infobox-icon"><i class="fas fa-book"></i></div>',
-        '<div style="flex:1;">',
-          '<div style="font-weight:700; font-size:1.22em; color:#000; margin-bottom:12px; text-align:left;">Literacy Rate</div>',
-          '<div style="font-size:2.8em; font-weight:600; color:#0B78A0; margin-bottom:auto;">', literacy["2025"], '%</div>',
-          '<div style="font-size:0.95em; color:', ifelse(literacy_change>=0,'#157A4A','#ff4444'), '; display:flex; align-items:center; gap:4px; margin-top:auto;">',
-            '<span>', ifelse(literacy_change>=0,'↑','↓'), '</span>',
-            ifelse(literacy_change>=0,'+',''), literacy_change, '% from last year</div>',
-        '</div>',
-      '</div>'
-    )
-    HTML(txt)
+    # Static HTML, renders instantly
+    HTML(literacy_box_html)
   })
-
+  
+  # Optimize: Suspend info boxes when hidden for faster loading (must be after all output definitions)
+  outputOptions(output, "gdp_box", suspendWhenHidden = TRUE)
+  outputOptions(output, "cpi_box", suspendWhenHidden = TRUE)
+  outputOptions(output, "poverty_box", suspendWhenHidden = TRUE)
+  outputOptions(output, "literacy_box", suspendWhenHidden = TRUE)
+  outputOptions(output, "electricity_box", suspendWhenHidden = TRUE)
+  outputOptions(output, "life_exp_box", suspendWhenHidden = TRUE)
 
   # All dashboard server logic is now handled by modules
   
