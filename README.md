@@ -3,6 +3,11 @@
 [![R](https://img.shields.io/badge/R-4.0+-blue.svg)](https://www.r-project.org/)
 [![Shiny](https://img.shields.io/badge/Shiny-1.7+-green.svg)](https://shiny.rstudio.com/)
 [![PostgreSQL](https://img.shields.io/badge/PostgreSQL-Neon-orange.svg)](https://neon.tech/)
+[![Live App](https://img.shields.io/badge/Live%20App-Available-brightgreen.svg)](https://gatete-jimmy.shinyapps.io/NDIP-CODES/)
+
+## 🌐 Live Application
+
+**👉 [Access the Live Application](https://gatete-jimmy.shinyapps.io/NDIP-CODES/)**
 
 A comprehensive data management and visualization platform for Rwanda's National Data Intelligence Platform, featuring automated workflow from data submission to publication.
 
@@ -13,7 +18,9 @@ A comprehensive data management and visualization platform for Rwanda's National
 - **✅ Review & Approval System**: Reviewers evaluate and approve/reject submissions
 - **📊 Live Dashboard Publishing**: Admins publish approved datasets to live dashboards
 - **🔔 Real-time Notifications**: Automated notifications at each workflow stage
-- **📈 Interactive Visualizations**: Plotly charts for data exploration
+- **📈 Interactive Visualizations**: echarts4r and Plotly charts for data exploration
+- **🤖 Machine Learning Models**: Random Forest and Prophet models for predictive analytics
+- **⚡ Optimized Performance**: Fast loading with caching and lazy loading strategies
 - **🔍 Audit Trail**: Complete logging of all system actions
 
 ## 🏗️ Architecture
@@ -95,7 +102,17 @@ NDIP.CODES.111.gatete/
 
 ## 🚀 Quick Start
 
-### Prerequisites
+### 🌐 Try the Live Application
+
+**👉 [Access the Live Application](https://gatete-jimmy.shinyapps.io/NDIP-CODES/)**
+
+The application is deployed and ready to use. You can explore all features including:
+- Interactive sector dashboards (Economic, Demographics & Agriculture, Health & Education)
+- Machine learning predictive models
+- Data submission and review workflows
+- Real-time visualizations
+
+### Prerequisites (For Local Development)
 
 - R (>= 4.0.0)
 - RStudio (recommended)
@@ -194,20 +211,24 @@ NDIP.CODES.111.gatete/
 - **Frontend**: Shiny, HTML5, CSS3, JavaScript
 - **Backend**: R (Shiny Server)
 - **Database**: Neon PostgreSQL
-- **Visualization**: Plotly, DT (DataTables)
-- **Deployment**: ShinyApps.io / Docker
+- **Visualization**: echarts4r, Plotly, DT (DataTables)
+- **Machine Learning**: Random Forest, Prophet
+- **Deployment**: [ShinyApps.io](https://gatete-jimmy.shinyapps.io/NDIP-CODES/) / Docker
 
 ## 📦 Key R Packages
 
 ```r
 shiny          # Web framework
 DT             # Interactive tables
+echarts4r      # Interactive charts (primary)
 plotly         # Interactive charts
 DBI            # Database interface
 RPostgres      # PostgreSQL connector
 dplyr          # Data manipulation
 readxl         # Excel file reading
 jsonlite       # JSON handling
+randomForest   # ML models
+prophet        # Time series forecasting
 ```
 
 ## 🔧 Configuration
@@ -233,7 +254,13 @@ Run SQL scripts in order:
 
 ## 🚢 Deployment
 
-### ShinyApps.io
+### Live Application
+
+**👉 [Access the Live Application](https://gatete-jimmy.shinyapps.io/NDIP-CODES/)**
+
+The application is currently deployed on ShinyApps.io and is accessible at the link above.
+
+### Deploy to ShinyApps.io
 
 ```r
 source("scripts/deployment/deploy_shinyapps.R")
@@ -298,4 +325,5 @@ For questions or issues:
 ---
 
 **Version**: 1.0.0  
-**Last Updated**: January 2025
+**Last Updated**: January 2025  
+**Live Application**: [https://gatete-jimmy.shinyapps.io/NDIP-CODES/](https://gatete-jimmy.shinyapps.io/NDIP-CODES/)
